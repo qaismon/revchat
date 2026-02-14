@@ -18,24 +18,60 @@ export default function ChatPage() {
       });
   }, []);
 
+  // Styled Loading State
   if (!currentUserId) {
-    return <p>Loading...</p>;
+    return (
+      <div style={{ 
+        height: "100vh", 
+        background: "#07090c", 
+        color: "#7EE787", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        fontFamily: "'Fira Code', monospace" 
+      }}>
+        {">"} INITIALIZING_SYSTEM_CORE...
+      </div>
+    );
   }
 
   return (
-  <div style={{display: "flex", height: "100vh", overflow: "hidden" }}>
-  {currentUserId && (
-    <ChatList
-      currentUserId={currentUserId}
-      onSelect={(id: string) => setPeerId(id)}
-    />
-  )}
-  
-      <div style={{ flex: 1, padding: 20 }}>
+    <div style={{ 
+      display: "flex", 
+      width: "100vw", 
+      height: "100vh", 
+      overflow: "hidden", 
+      background: "#07090c" 
+    }}>
+      {/* Sidebar Wrapper */}
+      <div style={{ width: "300px", height: "100%" }}>
+        <ChatList
+          currentUserId={currentUserId}
+          onSelect={(id: string) => setPeerId(id)}
+          selectedUserId={peerId} // Added this so the highlight works
+        />
+      </div>
+
+      {/* Main Chat Content */}
+      <div style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
         {peerId ? (
           <ChatBox userId={currentUserId} peerId={peerId} />
         ) : (
-          <p>Select a user to start chatting</p>
+          <div style={{ 
+            flex: 1, 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            color: "#484F58", 
+            fontFamily: "'Fira Code', monospace",
+            fontSize: "14px",
+            textAlign: "center"
+          }}>
+            <div>
+              <div style={{ color: "#58A6FF", marginBottom: "8px" }}>❯ SESSION_IDLE</div>
+              <div style={{ opacity: 0.8 }}>Select a contributor to begin review_session.</div>
+            </div>
+          </div>
         )}
       </div>
     </div>

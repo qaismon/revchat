@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   try {
     await dbConnect();
     // 1. Get username from request body
-    const { username, email, password } = await req.json();
+    const { username, email, password, avatar } = await req.json();
 
     if (!username || !email || !password) {
       return NextResponse.json({ message: "All fields are required" }, { status: 400 });
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
       username: username.trim(),
       email: email.toLowerCase(),
       password: hashedPassword,
+      avatar,
     });
 
     const token = jwt.sign(

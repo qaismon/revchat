@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   );
 
   // Fetch full conversation
+  // This will now include 'content' and 'contentSender' fields automatically
   const messages = await Message.find({
     $or: [
       { senderId: u1, receiverId: u2 },
@@ -34,16 +35,20 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   await connectDB();
   const body = await req.json();
-  const { senderId, receiverId, content } = body;
+  
+  // Destructure contentSender from the request body
+  const { senderId, receiverId, content, contentSender } = body;
 
-  if (!senderId || !receiverId || !content) {
-    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  // contentSender is now a required field for the double-encryption strategy
+  if (!senderId || !receiverId || !content || !contentSender) {
+    return NextResponse.json({ error: "Missing encrypted fields" }, { status: 400 });
   }
 
   const message = await Message.create({
     senderId: new mongoose.Types.ObjectId(senderId),
     receiverId: new mongoose.Types.ObjectId(receiverId),
-    content,
+    content,       // Encrypted with Peer's Public Key
+    contentSender, // Encrypted with My (Sender's) Public Key
     seen: false,
   });
 

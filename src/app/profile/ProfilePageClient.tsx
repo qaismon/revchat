@@ -1,20 +1,18 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function ProfilePageClient({ userId }: { userId: string }) {
+  const router = useRouter();
   const [avatar, setAvatar] = useState("");
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
   
-  // Input states
   const [newUserName, setNewUserName] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  
-  // Status states
   const [loading, setLoading] = useState(false);
 
-  // 1. Initial Load
   useEffect(() => {
     if (!userId) return;
     const fetchUser = async () => {
@@ -34,7 +32,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     fetchUser();
   }, [userId]);
 
-  // 2. UNIFIED UPDATE LOGIC
   const triggerUpdate = async (type: "avatar" | "username" | "password", value: string, extra = {}) => {
     setLoading(true);
     try {
@@ -43,11 +40,9 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, type, value, ...extra }),
       });
-
       const data = await res.json();
-
       if (res.ok) {
-        alert(`${type.charAt(0).toUpperCase() + type.slice(1)} updated!`);
+        alert(`${type.toUpperCase()} successfully updated.`);
         return true;
       } else {
         alert(data.error || "Update failed");
@@ -61,11 +56,10 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
-  // 3. Specific Handlers
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return alert("Image too large (Max 2MB)");
+    if (file.size > 2 * 1024 * 1024) return alert("File size exceeds 2MB limit.");
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -86,93 +80,121 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
-  // 4. Styles
+  // --- TERMINAL THEME STYLES ---
   const inputStyle = {
-    width: "100%", padding: "12px", marginTop: "8px", borderRadius: "8px",
-    border: "1px solid #ddd", fontSize: "15px", boxSizing: "border-box" as const,
+    width: "100%", padding: "12px", marginTop: "8px", borderRadius: "4px",
+    border: "1px solid #30363D", background: "#0D1117", color: "#C9D1D9",
+    fontSize: "14px", boxSizing: "border-box" as const, outline: "none",
+    fontFamily: "'Fira Code', monospace"
   };
 
   const btnStyle = {
-    width: "100%", padding: "12px", marginTop: "12px", background: "#075e54",
-    color: "white", border: "none", borderRadius: "8px", cursor: "pointer", 
-    fontWeight: "bold" as const, opacity: loading ? 0.7 : 1
+    width: "100%", padding: "12px", marginTop: "12px", background: "#238636",
+    color: "white", border: "none", borderRadius: "4px", cursor: "pointer", 
+    fontWeight: "bold" as const, opacity: loading ? 0.7 : 1,
+    fontFamily: "'Fira Code', monospace", fontSize: "12px"
   };
 
   const sectionCardStyle = {
-    marginBottom: "20px", padding: "15px", border: "1px solid #f0f0f0", borderRadius: "10px", background: "white"
+    marginBottom: "20px", padding: "20px", border: "1px solid #30363D", 
+    borderRadius: "8px", background: "#161B22"
   };
 
   return (
-    <div style={{ maxWidth: "450px", margin: "40px auto", padding: "30px", textAlign: "center", fontFamily: "Arial, sans-serif", border: "1px solid #eee", borderRadius: "15px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", background: "white" }}>
-      <h2 style={{ color: "#333", marginBottom: "5px" }}>Profile Settings</h2>
-      <p style={{ color: "#888", fontSize: "14px", marginBottom: "25px" }}>Manage your account details</p>
-
-      {/* Avatar Section */}
-      <div style={{ position: "relative", margin: "0 auto 15px", width: "125px", height: "125px", borderRadius: "50%", background: "#f0f0f0", overflow: "hidden", border: "4px solid #075e54", display: "flex", justifyContent: "center", alignItems: "center" }}>
-        {avatar ? (
-          <img src={avatar} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <div style={{ fontSize: "40px", color: "#ccc" }}>{userName?.[0]?.toUpperCase()}</div>
-        )}
-        {loading && <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px" }}>Saving...</div>}
-      </div>
-
-      <label style={{ color: "#075e54", cursor: "pointer", fontWeight: "bold", fontSize: "14px", display: "block", marginBottom: "30px" }}>
-        Change Photo
-        <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
-      </label>
-
-      <div style={{ textAlign: "left" }}>
+    <div style={{ 
+      minHeight: "100vh", background: "#07090c", display: "flex", 
+      alignItems: "center", justifyContent: "center", padding: "20px",
+      fontFamily: "'Fira Code', monospace", color: "#C9D1D9" 
+    }}>
+      <div style={{ maxWidth: "450px", width: "100%", textAlign: "center" }}>
         
-        {/* Email Display Card (New) */}
-        <div style={{ ...sectionCardStyle, background: "#fcfcfc" }}>
-          <label style={{ fontSize: "13px", fontWeight: "bold", color: "#666" }}>Email Address</label>
-          <div style={{ marginTop: "8px", padding: "12px", borderRadius: "8px", background: "#f0f0f0", color: "#555", fontSize: "15px", border: "1px solid #e0e0e0" }}>
-            {email || "Loading..."}
+        <h2 style={{ color: "#58A6FF", marginBottom: "5px", fontSize: "20px" }}>{">"} USER_SETTINGS</h2>
+        <p style={{ color: "#484F58", fontSize: "12px", marginBottom: "30px" }}>// modify_account_parameters</p>
+
+        {/* Avatar Section */}
+        <div style={{ 
+          position: "relative", margin: "0 auto 15px", width: "120px", height: "120px", 
+          borderRadius: "8px", background: "#0D1117", overflow: "hidden", 
+          border: "2px solid #58A6FF", display: "flex", justifyContent: "center", alignItems: "center" 
+        }}>
+          {avatar ? (
+            <img src={avatar} alt="Profile" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ fontSize: "40px", color: "#30363D" }}>{userName?.[0]?.toUpperCase()}</div>
+          )}
+          {loading && (
+            <div style={{ 
+              position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", 
+              color: "#7EE787", display: "flex", alignItems: "center", 
+              justifyContent: "center", fontSize: "10px" 
+            }}>WRITING...</div>
+          )}
+        </div>
+
+        <label style={{ color: "#58A6FF", cursor: "pointer", fontSize: "12px", display: "block", marginBottom: "30px" }}>
+          [ CHANGE_PROFILE_PHOTO ]
+          <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+        </label>
+
+        <div style={{ textAlign: "left" }}>
+          
+          {/* Email (ReadOnly) */}
+          <div style={sectionCardStyle}>
+            <label style={{ fontSize: "11px", color: "#8B949E" }}>// E-MAIL</label>
+            <div style={{ 
+              marginTop: "8px", padding: "12px", borderRadius: "4px", 
+              background: "#0D1117", color: "#484F58", fontSize: "14px", 
+              border: "1px solid #21262D" 
+            }}>
+              {email || "FETCHING..."}
+            </div>
           </div>
-          <p style={{ fontSize: "11px", color: "#999", marginTop: "8px" }}>Email cannot be changed.</p>
+
+          {/* Username */}
+          <div style={sectionCardStyle}>
+            <label style={{ fontSize: "11px", color: "#8B949E" }}>// NAME</label>
+            <input style={inputStyle} value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
+            <button style={btnStyle} onClick={handleNameUpdate} disabled={loading}>COMMIT_NAME_CHANGE</button>
+          </div>
+
+          {/* Password */}
+          <div style={sectionCardStyle}>
+            <label style={{ fontSize: "11px", color: "#8B949E" }}>// SECURITY_PROTOCOL</label>
+            <input 
+              type="password" 
+              style={inputStyle} 
+              placeholder="CURRENT_PASSWORD" 
+              value={currentPassword} 
+              onChange={(e) => setCurrentPassword(e.target.value)} 
+            />
+            <input 
+              type="password" 
+              style={inputStyle} 
+              placeholder="NEW_PASSWORD" 
+              value={newPassword} 
+              onChange={(e) => setNewPassword(e.target.value)} 
+            />
+            <button 
+              style={{ ...btnStyle, background: "#30363D" }} 
+              onClick={handlePasswordUpdate} 
+              disabled={loading}
+            >
+              CHANGE_PASSWORD
+            </button>
+          </div>
         </div>
 
-        {/* Username Card */}
-        <div style={sectionCardStyle}>
-          <label style={{ fontSize: "13px", fontWeight: "bold", color: "#666" }}>Display Name</label>
-          <input style={inputStyle} value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
-          <button style={{ ...btnStyle, background: "#128c7e" }} onClick={handleNameUpdate} disabled={loading}>Update Username</button>
-        </div>
-
-        {/* Password Card */}
-        <div style={{ ...sectionCardStyle, background: "#f9f9f9" }}>
-          <label style={{ fontSize: "13px", fontWeight: "bold", color: "#666" }}>Security</label>
-          <input 
-            type="password" 
-            style={inputStyle} 
-            placeholder="Current Password" 
-            value={currentPassword} 
-            onChange={(e) => setCurrentPassword(e.target.value)} 
-          />
-          <input 
-            type="password" 
-            style={inputStyle} 
-            placeholder="New Password" 
-            value={newPassword} 
-            onChange={(e) => setNewPassword(e.target.value)} 
-          />
-          <button 
-            style={{ ...btnStyle, background: "#333" }} 
-            onClick={handlePasswordUpdate} 
-            disabled={loading}
-          >
-            Change Password
-          </button>
-        </div>
+        <button 
+          onClick={() => router.push("/chat")} 
+          style={{ 
+            marginTop: "20px", background: "none", border: "none", 
+            color: "#8B949E", cursor: "pointer", fontSize: "12px",
+            textDecoration: "underline"
+          }}
+        >
+          {`<<`} RETURN_TO_CHATS
+        </button>
       </div>
-
-      <button 
-        onClick={() => window.location.href = "/chat"} 
-        style={{ marginTop: "30px", background: "none", border: "none", color: "#075e54", cursor: "pointer", fontWeight: "bold" }}
-      >
-        ← Back to Chat
-      </button>
     </div>
   );
 }

@@ -10,7 +10,6 @@ export async function GET(
   try {
     await connectDB();
 
-    // In Next.js 15+, params is a Promise. We must await it.
     const resolvedParams = await params;
     const id = resolvedParams.id;
 
@@ -18,7 +17,8 @@ export async function GET(
       return NextResponse.json({ message: "Invalid ID format" }, { status: 400 });
     }
 
-    const user = await User.findById(id).select("username email lastSeen avatar");
+    // ADD publicKey TO THE SELECT LIST BELOW
+    const user = await User.findById(id).select("username email lastSeen avatar publicKey");
 
     if (!user) {
       return NextResponse.json({ username: "Unknown User" }, { status: 404 });
