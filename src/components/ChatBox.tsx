@@ -308,7 +308,6 @@ const sendMessage = async (overrideContent?: string) => {
   const contentToSend = overrideContent || text;
   if (!contentToSend.trim() || !peerPublicKey) return;
 
-  // Clear typing status
   if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   socketRef.current?.emit("typing", { to: peerId, from: userId, isTyping: false });
 
@@ -515,7 +514,6 @@ const sendMessage = async (overrideContent?: string) => {
 )}
       </div>
       
-      {/* ... Action buttons and time logic ... */}
 
   
       {/* --- ACTION BUTTONS --- */}

@@ -34,12 +34,16 @@ export default function ChatList({ currentUserId, onSelect, selectedUserId }: an
     return () => { socket.off("receive-message"); socket.off("get-online-users"); };
   }, [socketRef.current, selectedUserId]);
 
-  const handleLogout = () => {
-    if (confirm("CONFIRMATION REQUIRED: Are you sure you want to terminate the current session?")) {
-      localStorage.removeItem("user"); 
-      router.push("/login");
+const handleLogout = async () => {
+  if (confirm("TERMINATE SESSION?")) {
+    await fetch("/api/auth/logout", { method: "POST" });
+
+    if (socketRef.current) {
+      socketRef.current.disconnect();
     }
-  };
+    window.location.href = "/login";
+  }
+};
 
   const displayedUsers = users
     .filter((u) => u.username?.toLowerCase().includes(searchTerm.toLowerCase()))

@@ -1,22 +1,34 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import ChatBox from "@/components/ChatBox";
+import { useRouter } from "next/navigation";
 import ChatList from "@/components/ChatList";
 
 export default function ChatPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [peerId, setPeerId] = useState<string | null>(null);
+    const router = useRouter();
+  
 
   useEffect(() => {
     fetch("/api/me")
-      .then((res) => res.json())
+      .then((res) => {if (!res.ok) {
+          throw new Error("UNAUTHORIZED");
+        }
+        return res.json();
+      })
       .then((user) => {
         if (user?._id) {
           setCurrentUserId(user._id);
         }
-      });
-  }, []);
+        else {
+          router.push("/login"); // No user ID found
+        }
+      })
+      .catch(() => {
+        router.push("/login"); // Redirect on any error
+      });;
+  }, [router]);
 
   // Styled Loading State
   if (!currentUserId) {

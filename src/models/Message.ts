@@ -12,12 +12,11 @@ const MessageSchema = new Schema(
       ref: "User",
       required: true,
     },
-    // This is encrypted with the RECEIVER'S public key
+
     content: {
       type: String,
       required: true,
     },
-    // ADD THIS: This is encrypted with the SENDER'S public key
     contentSender: {
       type: String,
       required: true,

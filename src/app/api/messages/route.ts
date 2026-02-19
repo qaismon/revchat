@@ -14,14 +14,11 @@ export async function GET(req: Request) {
   const u1 = new mongoose.Types.ObjectId(user1);
   const u2 = new mongoose.Types.ObjectId(user2);
 
-  // Mark all unread messages FROM the peer TO the current user as seen
   await Message.updateMany(
     { senderId: u2, receiverId: u1, seen: false },
     { $set: { seen: true } }
   );
 
-  // Fetch full conversation
-  // This will now include 'content' and 'contentSender' fields automatically
   const messages = await Message.find({
     $or: [
       { senderId: u1, receiverId: u2 },

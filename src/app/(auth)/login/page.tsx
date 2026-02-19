@@ -3,7 +3,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck, Camera } from "lucide-react";
 
-// --- HELPER FUNCTIONS FOR E2EE (Logics Unchanged) ---
 async function generateAndStoreKeys(userId: string) {
   const keys = await window.crypto.subtle.generateKey(
     {
@@ -46,6 +45,15 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((res) => {
+        if (res.ok) {
+          router.push("/chat");
+        }
+      });
+  }, [router]);
 
   useEffect(() => {
     const savedEmail = localStorage.getItem("rememberedEmail");
@@ -105,7 +113,6 @@ export default function LoginPage() {
         localStorage.setItem("userId", data.userId);
         if (rememberMe) {
           localStorage.setItem("rememberedEmail", email);
-          localStorage.setItem("rememberedPassword", password);
         }
 
         const existingKey = localStorage.getItem(`privKey_${data.userId}`);
@@ -204,7 +211,7 @@ export default function LoginPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", cursor: "pointer", color: "#8B949E" }}>
               <input type="checkbox" style={{ accentColor: "#238636" }} checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-              Persist session
+              Persist email
             </label>
             <span style={{ fontSize: "12px", color: "#58A6FF", cursor: "pointer" }}>forgot_password</span>
           </div>
