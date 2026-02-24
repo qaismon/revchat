@@ -39,13 +39,13 @@ const CodeBlock = ({ code, language, isAutoDetected }: CodeBlockProps) => {
   language={(language || "text").toLowerCase()} 
   style={vscDarkPlus} 
   customStyle={highlighterStyle}
-  showLineNumbers={true} // Enables the line numbers
+  showLineNumbers={true}
   lineNumberStyle={{ 
     minWidth: "2.5em", 
     paddingRight: "1em", 
     color: "#484F58", 
     textAlign: "right",
-    userSelect: "none" // Prevents numbers from being highlighted when selecting code
+    userSelect: "none"
   }} 
   codeTagProps={{
     style: { fontFamily: "'Fira Code', monospace" }
@@ -59,22 +59,13 @@ const CodeBlock = ({ code, language, isAutoDetected }: CodeBlockProps) => {
 
 export default function CodeReviewer({ text }: { text: string }) {
   const content = text || "";
+  const isAudioPacket = content.startsWith("AUDIO_PACKET:");
+  const audioSrc = isAudioPacket ? content.replace("AUDIO_PACKET:", "") : "";
 
-  if (text.startsWith("AUDIO_PACKET:")) {
-    const audioSrc = text.replace("AUDIO_PACKET:", "");
-    
-    return (
-      <div style={{ margin: "5px 0" }}>
-        <div style={{ color: "#7EE787", fontSize: "10px", fontFamily: "monospace", opacity: 0.8 }}>
-          // INCOMING_VOICE_TRANSMISSION
-        </div>
-        <VoiceMessage src={audioSrc} />
-      </div>
-    );
-  }
-
-  // Use useMemo to prevent re-running heavy detection on every re-render
   const renderedContent = useMemo(() => {
+    if (isAudioPacket) {
+      return null;
+    }
     const parts = [];
     const codeBlockRegex = /```(\w*)\s*\n?([\s\S]*?)\n?```/g;
     let lastIndex = 0;
@@ -117,7 +108,18 @@ export default function CodeReviewer({ text }: { text: string }) {
     }
 
     return parts;
-  }, [content]);
+  }, [content, isAudioPacket]);
+
+  if (isAudioPacket) {
+    return (
+      <div style={{ margin: "5px 0" }}>
+        <div style={{ color: "#7EE787", fontSize: "10px", fontFamily: "monospace", opacity: 0.8 }}>
+          {"// INCOMING_VOICE_TRANSMISSION"}
+        </div>
+        <VoiceMessage src={audioSrc} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ lineHeight: "1.5", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
