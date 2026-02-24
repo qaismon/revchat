@@ -32,7 +32,7 @@ export default function ChatList({ currentUserId, onSelect, selectedUserId }: an
     socket.on("receive-message", handleNewMessage);
     socket.on("get-online-users", (ids: string[]) => setOnlineUsers(ids.map(id => String(id))));
     return () => { socket.off("receive-message"); socket.off("get-online-users"); };
-  }, [selectedUserId, socketRef]);
+  }, [socketRef.current, selectedUserId]);
 
 const handleLogout = async () => {
   if (confirm("TERMINATE SESSION?")) {
