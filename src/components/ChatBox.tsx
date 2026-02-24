@@ -51,13 +51,11 @@ export default function ChatBox({ userId, peerId }: { userId: string, peerId: st
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
-  // const [reviewingCode, setReviewingCode] = useState<{id: string, code: string} | null>(null);
   const [isReviewMode, setIsReviewMode] = useState(false);
 const [reviewData, setReviewData] = useState({ id: "", code: "", comments: "" });
 
 const requestAIDescription = async (msgId: string, rawCode: string) => {
   try {
-    // 1. Clean the code: Remove any existing AI headers if they exist
     const cleanCode = rawCode
       .replace(/### 🧠 LOGIC_EXPLAINED/g, "")
       .replace(/\[SYSTEM_DIAGNOSTIC_REPORT\].*/g, "")
@@ -71,7 +69,6 @@ const requestAIDescription = async (msgId: string, rawCode: string) => {
     const aiMsgId = `ai-desc-${Date.now()}`;
     const loadingText = "Analyzing logic flow... 🧠";
 
-    // Show loading locally in the UI
     setMessages(prev => [...prev, { 
       _id: aiMsgId, 
       senderId: "AI_BOT", 
@@ -80,23 +77,20 @@ const requestAIDescription = async (msgId: string, rawCode: string) => {
     }]);
     setDecryptedMessages(prev => ({ ...prev, [aiMsgId]: loadingText }));
 
-    // 2. The Fetch Call
     const res = await fetch("/api/ai/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
-        code: cleanCode, // Explicitly sending the cleaned code
+        code: cleanCode, 
         mode: "DESCRIBE" 
       }),
     });
     
     const data = await res.json();
     
-    // 3. Remove the loading message before sending the real one
     setMessages(prev => prev.filter(m => m._id !== aiMsgId));
 
     if (data.suggestion) {
-      // Use sendMessage to encrypt and persist the AI's explanation
       await sendMessage(`### 🧠 LOGIC_EXPLAINED\n\n${data.suggestion}`);
     }
 
@@ -107,7 +101,6 @@ const requestAIDescription = async (msgId: string, rawCode: string) => {
 
 const requestAIReview = async (msgId: string, rawCode: string) => {
   try {
-    // 1. Show a loading state locally
     const aiMsgId = `ai-${Date.now()}`;
     const loadingMsg = { 
       _id: aiMsgId, 
@@ -119,7 +112,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
     setDecryptedMessages(prev => ({ ...prev, [aiMsgId]: "System: Analyzing code structure..." }));
     
 
-    // 2. Call our Groq Route
     const res = await fetch("/api/ai/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -128,9 +120,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
     
     const data = await res.json();
 
-    // 3. Encrypt and Save the AI response to DB so it persists
-    // Note: Use your existing 'sendMessage' logic here, 
-    // but set the senderId to 'AI_BOT' or a specific ID.
     await sendMessage(`[AI CODE REVIEW]\n\n${data.suggestion}`);
 
   } catch (err) {
@@ -141,7 +130,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
  const handleVoiceSend = async () => {
   const base64Audio = await stopRecording();
   if (base64Audio) {
-    // This now triggers the FULL encryption + DB save process
     await sendMessage(`AUDIO_PACKET:${base64Audio}`);
   }
 };
@@ -154,7 +142,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
 
   useEffect(() => { scrollToBottom(); }, [messages, isPeerTyping, decryptedMessages, scrollToBottom]);
 
-  // Load Chat & Peer Info
   useEffect(() => {
     const loadChat = async () => {
       if (!userId || !peerId) return;
@@ -176,7 +163,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
     loadChat();
   }, [userId, peerId, socketRef]);
 
-  // Handle Decryption Loop
  useEffect(() => {
     const decryptAll = async () => {
       const privKeyRaw = localStorage.getItem(`privKey_${userId}`);
@@ -195,8 +181,7 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
             const isMe = m.senderId === userId;
             const rawData = isMe ? m.contentSender : m.content;
 
-            // --- ADD THIS CHECK HERE ---
-    // Skip if it's an AI_BOT system message (already plaintext)
+
     if (m.senderId === "AI_BOT") {
       newDecrypted[msgId] = m.content;
       updated = true;
@@ -210,11 +195,9 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
               continue;
             }
 
-            // --- HYBRID DECRYPTION LOGIC ---
-            // 1. Parse the JSON package
+
             const { ct, iv, wk } = JSON.parse(rawData);
 
-            // 2. Decrypt the AES key (wk) using RSA Private Key
             const wrappedKeyBuffer = Uint8Array.from(atob(wk), (c) => c.charCodeAt(0));
             const aesKeyBuffer = await window.crypto.subtle.decrypt(
               { name: "RSA-OAEP" }, 
@@ -222,7 +205,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
               wrappedKeyBuffer
             );
 
-            // 3. Import the decrypted AES key
             const aesKey = await window.crypto.subtle.importKey(
               "raw", 
               aesKeyBuffer, 
@@ -231,7 +213,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
               ["decrypt"]
             );
 
-            // 4. Decrypt the actual content (ct) using AES-GCM
             const contentBuffer = Uint8Array.from(atob(ct), (c) => c.charCodeAt(0));
             const ivBuffer = Uint8Array.from(atob(iv), (c) => c.charCodeAt(0));
             
@@ -246,7 +227,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
 
           } catch (e) {
             console.error("Decryption error for message:", msgId, e);
-            // Fallback: If JSON.parse fails, it might be an old RSA-only message
             newDecrypted[msgId] = "[ERROR: DECRYPTION_FAILED]";
             updated = true;
           }
@@ -294,7 +274,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
     };
   }, [userId, peerId, socketRef]);
 
-  // FIXED: Changed type to support TextArea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     setText(e.target.value);
     socketRef.current?.emit("typing", { to: peerId, from: userId, isTyping: true });
@@ -313,16 +292,14 @@ const sendMessage = async (overrideContent?: string) => {
 
   try {
     const rawText = contentToSend;
-    if (!overrideContent) setText(""); // Clear input only if it was a text message
+    if (!overrideContent) setText(""); 
 
-    // 1. Generate AES-GCM key
     const aesKey = await window.crypto.subtle.generateKey(
       { name: "AES-GCM", length: 256 },
       true,
       ["encrypt", "decrypt"]
     );
 
-    // 2. Encrypt
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     const encodedText = new TextEncoder().encode(rawText);
     const encryptedContent = await window.crypto.subtle.encrypt(
@@ -331,11 +308,9 @@ const sendMessage = async (overrideContent?: string) => {
       encodedText
     );
 
-    // 3. Export & Wrap keys
     const exportedAesKey = await window.crypto.subtle.exportKey("raw", aesKey);
     const peerPub = await importPublicKey(peerPublicKey);
     
-    // Fetch my key for history decryption
     const meRes = await fetch(`/api/users/${userId}`);
     const meData = await meRes.json();
     const myPub = await importPublicKey(meData.publicKey);
@@ -343,7 +318,6 @@ const sendMessage = async (overrideContent?: string) => {
     const wrappedKeyPeer = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, peerPub, exportedAesKey);
     const wrappedKeyMe = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, myPub, exportedAesKey);
 
-    // 4. Package
     const packagePeer = JSON.stringify({
       ct: btoa(String.fromCharCode(...new Uint8Array(encryptedContent))),
       iv: btoa(String.fromCharCode(...iv)),
@@ -356,7 +330,6 @@ const sendMessage = async (overrideContent?: string) => {
       wk: btoa(String.fromCharCode(...new Uint8Array(wrappedKeyMe)))
     });
 
-    // 5. Update UI Locally
     const tempId = `msg-${Date.now()}`;
     const tempMsg = { 
       _id: tempId, 
@@ -370,10 +343,8 @@ const sendMessage = async (overrideContent?: string) => {
     setMessages((prev) => [...prev, tempMsg]);
     setDecryptedMessages(prev => ({ ...prev, [tempId]: rawText }));
 
-    // 6. SOCKET EMIT
     socketRef.current?.emit("send-message", { to: peerId, message: packagePeer, senderId: userId });
     
-    // 7. PERSIST TO MONGO (The part that was missing for audio)
     const dbRes = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -402,7 +373,7 @@ const sendMessage = async (overrideContent?: string) => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0D1117", border: "2px solid #30363D", borderRadius: "8px", margin: "10px", boxShadow: "0 8px 32px rgba(0,0,0,0.4)", fontFamily: "'Fira Code', monospace", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#090b0f", border: "2px solid #30363D", borderRadius: "8px", margin: "10px", boxShadow: "0 8px 32px rgba(0,0,0,0.4)", fontFamily: "'Fira Code', monospace", overflow: "hidden" }}>
       <style>{`
         .terminal-scroll::-webkit-scrollbar { width: 8px; }
         .terminal-scroll::-webkit-scrollbar-track { background: #0D1117; }

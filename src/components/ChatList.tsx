@@ -59,7 +59,7 @@ const handleLogout = async () => {
     display: "flex",
     flexDirection: "column",
     height: "100%",
-    background: "#0D1117", 
+    background: "#090b0f", 
     borderRight: "2px solid #30363D",
     fontFamily: "'Fira Code', 'Courier New', monospace",
     color: "#C9D1D9",
@@ -114,7 +114,7 @@ const handleLogout = async () => {
               style={{ 
                 padding: "12px 16px", 
                 borderLeft: isSelected ? "3px solid #58A6FF" : "3px solid transparent",
-                background: isSelected ? "#161B22" : "transparent",
+                background: isSelected ? "#0e131a" : "transparent",
                 cursor: "pointer",
                 display: "flex", 
                 gap: "12px", 
