@@ -57,6 +57,43 @@ app.prepare().then(() => {
       io.to(senderId).emit("messages-seen", { seenBy: receiverId });
     });
 
+    // GROUP: Join a group room
+    socket.on("join-group", (groupId) => {
+      socket.join(`group:${groupId}`);
+      console.log(`🟣 Socket [${socket.id}] joined group room [${groupId}]`);
+    });
+
+    // GROUP: Broadcast a message to all group members
+    socket.on("send-group-message", ({ groupId, message, senderId, senderName, senderAvatar }) => {
+      const payload = {
+        groupId,
+        senderId,
+        senderName,
+        senderAvatar: senderAvatar || "",
+        content: message,
+        createdAt: new Date().toISOString(),
+      };
+      io.to(`group:${groupId}`).emit("receive-group-message", payload);
+    });
+
+    // GROUP: Typing indicator inside a group
+    socket.on("group-typing", ({ groupId, from, fromName, isTyping }) => {
+      // Broadcast to group room but exclude the sender
+      socket.to(`group:${groupId}`).emit("group-display-typing", {
+        from,
+        fromName,
+        isTyping,
+      });
+    });
+
+    // GROUP: Signal that a group was created, deleted, or members changed
+    // This allows clients to re-fetch their group list or active group
+    socket.on("trigger-group-update", (data) => {
+      // We broadcast this to everyone. Clients will decide if they need to refresh 
+      // based on whether they are in the group or if it's a new group they might be part of.
+      io.emit("group-updated", data);
+    });
+
     // DISCONNECT LOGIC
     socket.on("disconnect", () => {
       let disconnectedUserId = null;

@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
     await connectDB();
     const user = await User.findById(decoded.userId).select(
-      "_id username email"
+      "_id username email avatar"
     );
 
     return NextResponse.json(user);
