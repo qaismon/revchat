@@ -39,7 +39,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [avatar, setAvatar] = useState(""); // New Avatar State
+  const [avatar, setAvatar] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -64,6 +64,8 @@ export default function LoginPage() {
     }
     if (savedPassword) setPassword(savedPassword);
   }, []);
+
+  
 
   // Avatar Handler
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,7 +225,12 @@ export default function LoginPage() {
 
         <p style={{ textAlign: "center", marginTop: "10px", fontSize: "13px", color: "#8B949E" }}>
           {isRegistering ? "Existing user?" : "New user detected?"}{" "}
-          <span onClick={() => setIsRegistering(!isRegistering)} style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}>
+          <span onClick={() => {setIsRegistering(!isRegistering)
+                               setUsername("")
+                              setPassword("")
+                              setRememberMe(false)
+                              setEmail("")
+          }} style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}>
             {isRegistering ? "[Login]" : "[Register]"}
           </span>
         </p>

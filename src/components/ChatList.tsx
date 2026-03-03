@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useSocket } from "@/hooks/useSocket";
 import { useRouter } from "next/navigation";
 import CreateGroupModal from "./CreateGroupModal";
+import ConfirmModal from "./ConfirmModal";
 
 interface Group {
   _id: string;
@@ -20,9 +21,36 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"dms" | "groups">("dms");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [modalConfig, setModalConfig] = useState<{
+  message: string;
+  title: string;
+  variant: "danger" | "info" | "success";
+  onConfirm: () => void;
+} | null>(null);
 
   const socketRef = useSocket(currentUserId);
   const router = useRouter();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+const handleSoftRefresh = async () => {
+  setIsRefreshing(true);
+  try {
+    // Run both fetches in parallel
+    await Promise.all([
+      loadGroups(),
+      fetch(`/api/users?myId=${currentUserId}`)
+        .then((res) => res.json())
+        .then((data) => { if (Array.isArray(data)) setUsers(data); })
+    ]);
+    console.log("// SYSTEM_SYNC_COMPLETE");
+  } catch (err) {
+    console.error("Refresh failed:", err);
+  } finally {
+    // Small delay so the animation is visible
+    setTimeout(() => setIsRefreshing(false), 500);
+  }
+};
 
   // Load users (for DMs)
   useEffect(() => {
@@ -44,6 +72,8 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
 
   useEffect(() => { loadGroups(); }, [currentUserId]);
 
+  
+
   // Join all group rooms on socket connection
   useEffect(() => {
     const socket = socketRef.current;
@@ -63,10 +93,34 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
       }
     };
 
-    const handleGroupUpdate = () => {
-      // Reload groups when there is any group update
-      loadGroups();
-    };
+   const handleGroupUpdate = (data: any) => {
+  // Use String() on everything to prevent type mismatch (ObjectId vs String)
+  const incomingUserId = data?.userId ? String(data.userId) : null;
+  const incomingGroupId = data?.groupId ? String(data.groupId) : null;
+  
+  const isMe = incomingUserId === String(currentUserId);
+  const isSelectedGroup = incomingGroupId === String(selectedGroupId);
+
+  console.log("Group Update Received:", data.action, "Is it me?", isMe, "Is it selected?", isSelectedGroup);
+
+  if (data?.action === "exit" && isMe) {
+    // 1. Remove from local list
+    setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
+    
+    // 2. CLOSE THE CHATBOX
+    if (isSelectedGroup) {
+      console.log("Closing ChatBox for group:", incomingGroupId);
+      onSelectGroup(null); 
+    }
+  } 
+  else if (data?.action === "delete") {
+    setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
+    if (isSelectedGroup) onSelectGroup(null);
+  } 
+  else {
+    loadGroups();
+  }
+};
 
     const handleGroupMessage = (msg: any) => {
       const gId = String(msg.groupId);
@@ -86,15 +140,21 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
       socket.off("group-updated", handleGroupUpdate);
       socket.off("get-online-users");
     };
-  }, [socketRef.current, selectedUserId, selectedGroupId]);
+  }, [socketRef.current, selectedUserId, selectedGroupId, currentUserId]);
 
-  const handleLogout = async () => {
-    if (confirm("TERMINATE SESSION?")) {
-      await fetch("/api/auth/logout", { method: "POST" });
+  const handleLogout = () => {
+  setModalConfig({
+    title: "TERMINATE_SESSION",
+    message: "Confirm logout?",
+    variant: "danger",
+    onConfirm: async () => {
+await fetch("/api/auth/logout", { method: "POST" });
       if (socketRef.current) socketRef.current.disconnect();
-      window.location.href = "/login";
-    }
-  };
+      window.location.href = "/login";    }
+  });
+};
+
+ 
 
   const displayedUsers = users
     .filter((u) => u.username?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -132,7 +192,21 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
         .logout-btn:hover { color: #F85149 !important; }
         .tab-btn { transition: all 0.2s; }
         .tab-btn:hover { opacity: 1 !important; }
-      `}</style>
+        @keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.refresh-btn.spinning svg {
+  animation: spin 0.8s linear infinite;
+  color: #58A6FF; /* Turns blue while loading */
+}
+
+.refresh-btn:hover:not(.spinning) { 
+  color: #fff !important; 
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 5px #7EE787);
+}`}</style>
 
       {/* Title Bar */}
       <div style={{ background: "#161B22", padding: "16px", borderBottom: "1px solid #30363D", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -147,11 +221,19 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
           onClick={() => setActiveTab("dms")}
           style={{ flex: 1, padding: "9px", background: "transparent", border: "none", borderBottom: activeTab === "dms" ? "2px solid #58A6FF" : "2px solid transparent", color: activeTab === "dms" ? "#58A6FF" : "#8B949E", cursor: "pointer", fontSize: "11px", fontFamily: "inherit", fontWeight: activeTab === "dms" ? "bold" : "normal" }}
         >
-          DMs {Object.values(unreadCounts).reduce((a, b) => a + b, 0) > 0 && (
-            <span style={{ background: "#238636", color: "white", padding: "0 4px", borderRadius: "8px", fontSize: "9px", marginLeft: "4px" }}>
-              {Object.values(unreadCounts).reduce((a, b) => a + b, 0)}
-            </span>
-          )}
+          DMs {(() => {
+  const totalUnread = Object.entries(unreadCounts)
+    .reduce((acc, [id, count]) => {
+      // Logic check: Only sum if the ID isn't the current user
+      return id !== currentUserId ? acc + count : acc;
+    }, 0);
+
+  return totalUnread > 0 ? (
+    <span style={{ background: "#238636", color: "white", padding: "0 4px", borderRadius: "8px", fontSize: "9px", marginLeft: "4px" }}>
+      {totalUnread}
+    </span>
+  ) : null;
+})()}
         </button>
         <button
           className="tab-btn"
@@ -275,22 +357,52 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
       </div>
 
       {/* Utility Bar */}
-      <div style={{ padding: "10px 16px", borderTop: "1px solid #30363D", background: "#161B22", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-        <button onClick={() => router.push("/profile")} className="util-btn" style={{ background: "none", border: "none", color: "#58A6FF", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-          [ PROFILE ]
-        </button>
-        {activeTab === "groups" && (
-          <button
-            onClick={() => setShowCreateGroup(true)}
-            style={{ background: "none", border: "none", color: "#a78bfa", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-          >
-            [ + NEW_GROUP ]
-          </button>
-        )}
-        <button onClick={handleLogout} className="logout-btn" style={{ background: "none", border: "none", color: "#b91717", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit", marginLeft: "auto" }}>
-          [ TERMINATE ]
-        </button>
-      </div>
+<div style={{ padding: "10px 10px", borderTop: "1px solid #30363D", background: "#161B22", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+    
+
+  <button onClick={() => router.push("/profile")} className="util-btn" style={{ background: "none", border: "none", color: "#58A6FF", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
+    [ PROFILE ]
+  </button>
+
+{/* Refresh Icon Button */}
+
+
+  {activeTab === "groups" && (
+    <button
+      onClick={() => setShowCreateGroup(true)}
+      style={{ background: "none", border: "none", color: "#a78bfa", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+    >
+      [ + NEW_GROUP ]
+    </button>
+  )}
+
+  <button onClick={handleLogout} className="logout-btn" 
+  style={{ background: "none", border: "none", color: "#b91717", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit"}}>
+    [ LOG OUT ]
+  </button>
+  {activeTab!=="groups"&& (<button 
+  onClick={handleSoftRefresh} 
+  className={`refresh-btn ${isRefreshing ? "spinning" : ""}`}
+  disabled={isRefreshing}
+  style={{ 
+    background: "none", 
+    border: "none", 
+    color: isRefreshing ? "#fff" : "#7EE787", 
+    cursor: isRefreshing ? "default" : "pointer", 
+    padding: "4px", 
+    display: "flex", 
+    alignItems: "center", 
+    justifyContent: "center",
+    transition: "all 0.2s ease"
+  }}
+>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 4v6h-6"></path>
+    <path d="M1 20v-6h6"></path>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+  </svg>
+</button>)}
+</div>
 
       {/* Footer */}
       <div style={{ padding: "8px 16px", background: "#0D1117", borderTop: "1px solid #30363D", fontSize: "10px", color: "#484F58", display: "flex", justifyContent: "space-between" }}>
@@ -310,6 +422,20 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
           }}
         />
       )}
+
+      <ConfirmModal
+  isOpen={!!modalConfig}
+  title={modalConfig?.title}
+  message={modalConfig?.message || ""}
+  variant={modalConfig?.variant}
+  onConfirm={() => {
+    modalConfig?.onConfirm();
+    setModalConfig(null);
+  }}
+  onCancel={() => setModalConfig(null)}
+/>
     </div>
+
+    
   );
 }

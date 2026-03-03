@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useSocket } from "@/hooks/useSocket";
 import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import ConfirmModal from "./ConfirmModal";
+
 
 interface Member {
   _id: string;
@@ -46,6 +48,12 @@ export default function GroupChatBox({
   const [showAddMember, setShowAddMember] = useState(false);
   const messagesEndRef = { current: null as HTMLDivElement | null };
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const [modalConfig, setModalConfig] = useState<{
+  title: string;
+  message: string;
+  variant: "danger" | "info";
+  onConfirm: () => void;
+} | null>(null);
 
   // Join the group socket room
   useEffect(() => {
@@ -108,6 +116,38 @@ export default function GroupChatBox({
       .then((data) => { if (Array.isArray(data)) setAllUsers(data); })
       .catch(console.error);
   }, [showAddMember, userId]);
+
+  // Inside GroupChatBox component
+useEffect(() => {
+  const socket = socketRef.current;
+  if (!socket) return;
+
+  const handleGroupUpdate = (data: any) => {
+    const isThisGroup = String(data.groupId) === String(groupId);
+    const isMe = String(data.userId) === String(userId);
+
+    // Action: REMOVE (Kicked by Admin)
+    if (data.action === "remove" && isThisGroup && isMe) {
+  // 1. Show the Modal with only an "OK" option
+  setModalConfig({
+    title: "ACCESS_REVOKED",
+    message: "CRITICAL: Your access to this group has been terminated by an administrator.",
+    variant: "danger",
+    onConfirm: () => {
+      onGroupDeleted?.(); // Only close the chat AFTER they click OK
+    }
+  });
+}
+
+    // Action: DELETE (Group Destroyed)
+    if (data.action === "delete" && isThisGroup) {
+      onGroupDeleted?.();
+    }
+  };
+
+  socket.on("group-updated", handleGroupUpdate);
+  return () => { socket.off("group-updated", handleGroupUpdate); };
+}, [socketRef, groupId, userId, onGroupDeleted]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
@@ -173,41 +213,86 @@ export default function GroupChatBox({
     }
   };
 
-  const handleRemoveMember = async (memberId: string) => {
-    if (!confirm("Remove this member?")) return;
-    const res = await fetch(`/api/groups/${groupId}/members`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId }),
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      onMembersUpdated?.(updated.members);
-    }
-  };
+ const handleRemoveMember = (memberId: string) => {
+  // 1. Open the modal by setting the config
+  setModalConfig({
+    title: "MEMBER_REMOVAL",
+    message: `Remove user from group?`,
+    variant: "danger",
+    onConfirm: async () => {
+      // 2. This code runs only when they click "PROCEED"
+      const res = await fetch(`/api/groups/${groupId}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId }),
+      });
 
-  const handleExitGroup = async () => {
-    if (!confirm("Are you sure you want to leave this group?")) return;
-    const res = await fetch(`/api/groups/${groupId}/members`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ memberId: userId }),
-    });
-    if (res.ok) {
-      // Call onGroupDeleted to remove it from ChatList and deselect it
-      onGroupDeleted?.();
-    }
-  };
+      if (res.ok) {
+        const updated = await res.json();
+        onMembersUpdated?.(updated.members);
 
-  const handleDeleteGroup = async () => {
-    if (!confirm(`DELETE group "${groupName}" and all its messages? This cannot be undone.`)) return;
-    const res = await fetch(`/api/groups/${groupId}`, { method: "DELETE" });
-    if (res.ok) {
-      onGroupDeleted?.();
-    } else {
-      alert("Failed to delete group.");
-    }
-  };
+        // Notify other clients via socket
+        socketRef.current?.emit("trigger-group-update", {
+          action: "remove",
+          groupId: groupId,
+          userId: memberId,
+        });
+      }
+    },
+  });
+};
+  const handleExitGroup = () => {
+  setModalConfig({
+    title: "TERMINATE_MEMBERSHIP",
+    message: "Confirm group exit?",
+    variant: "danger",
+    onConfirm: async () => {
+      // Logic inside the modal confirm button
+      const res = await fetch(`/api/groups/${groupId}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: userId }),
+      });
+
+      if (res.ok) {
+        // 1. Tell the server to broadcast the exit
+        socketRef.current?.emit("trigger-group-update", {
+          action: "exit",
+          groupId: groupId,
+          userId: userId
+        });
+        
+        // 2. Local cleanup (this closes the chat box)
+        onGroupDeleted?.();
+      }
+    },
+  });
+};
+
+const handleDeleteGroup = () => {
+  setModalConfig({
+    title: "CRITICAL_ACTION: DELETE_GROUP",
+    message: `WARNING: Permanently delete group "${groupName.toUpperCase()}"? This action will purge all message history and member associations from the core database. This cannot be undone.`,
+    variant: "danger",
+    onConfirm: async () => {
+      const res = await fetch(`/api/groups/${groupId}`, { method: "DELETE" });
+
+      if (res.ok) {
+        // 1. Tell the server to broadcast the deletion to all members
+        socketRef.current?.emit("trigger-group-update", {
+          action: "delete",
+          groupId: groupId
+        });
+        
+        // 2. Local cleanup (unmounts the chatbox)
+        onGroupDeleted?.();
+      } else {
+        console.error("Failed to delete group");
+        // Optional: show an error variant modal here
+      }
+    },
+  });
+};
 
   const handleVoiceSend = async () => {
     const base64Audio = await stopRecording();
@@ -505,6 +590,17 @@ export default function GroupChatBox({
           <span style={{ fontSize: "10px", color: "#484F58" }}>chars: {text.length}</span>
         </div>
       </div>
+      <ConfirmModal
+      isOpen={!!modalConfig}
+      title={modalConfig?.title}
+      message={modalConfig?.message || ""}
+      variant={modalConfig?.variant}
+      onConfirm={() => {
+        modalConfig?.onConfirm();
+        setModalConfig(null);
+      }}
+      onCancel={() => setModalConfig(null)}
+    />
     </div>
   );
 }

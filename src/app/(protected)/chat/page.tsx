@@ -59,23 +59,29 @@ export default function ChatPage() {
 
       {/* Main Chat Content */}
       <div style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column" }}>
-        {peerId ? (
-          <ChatBox userId={currentUser._id} peerId={peerId} />
-        ) : activeGroup ? (
-          <GroupChatBox
-            userId={currentUser._id}
-            userAvatar={currentUser.avatar || ""}
-            userName={currentUser.username}
-            groupId={activeGroup._id}
-            groupName={activeGroup.name}
-            members={activeGroup.members || []}
-            isAdmin={String(activeGroup.admin?._id || activeGroup.admin) === String(currentUser._id)}
-            onMembersUpdated={(updatedMembers) =>
-              setActiveGroup((prev: any) => ({ ...prev, members: updatedMembers }))
-            }
-          />
-        ) : (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#484F58", fontFamily: "'Fira Code', monospace", fontSize: "14px", textAlign: "center" }}>
+  {peerId ? (
+    <ChatBox userId={currentUser._id} peerId={peerId} />
+  ) : activeGroup ? (
+    <GroupChatBox
+      userId={currentUser._id}
+      userAvatar={currentUser.avatar || ""}
+      userName={currentUser.username}
+      groupId={activeGroup._id}
+      groupName={activeGroup.name}
+      members={activeGroup.members || []}
+      isAdmin={String(activeGroup.admin?._id || activeGroup.admin) === String(currentUser._id)}
+      
+      // 🔥 ADD THIS PROP HERE
+      onGroupDeleted={() => {
+        console.log("Group deleted or user removed - Closing UI");
+        setActiveGroup(null); 
+      }}
+
+      onMembersUpdated={(updatedMembers) =>
+        setActiveGroup((prev: any) => ({ ...prev, members: updatedMembers }))
+      }
+    />
+  ) : (    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#484F58", fontFamily: "'Fira Code', monospace", fontSize: "14px", textAlign: "center" }}>
             <div>
               <div style={{ color: "#58A6FF", marginBottom: "8px" }}>❯ SESSION_IDLE</div>
               <div style={{ opacity: 0.8 }}>Select a DM or group to begin.</div>

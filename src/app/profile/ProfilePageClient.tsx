@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+// 1. Import your new modal
+import ConfirmModal from "@/components/ConfirmModal";
 
 export default function ProfilePageClient({ userId }: { userId: string }) {
   const router = useRouter();
@@ -12,6 +14,14 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 2. Setup Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    title: string;
+    message: string;
+    variant: "danger" | "info" | "success";
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -42,14 +52,31 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(`${type.toUpperCase()} successfully updated.`);
+        // UPDATED: Success Modal
+        setModalConfig({
+          title: "SYNC_SUCCESS",
+          message: `${type.toUpperCase()} modified successfully.`,
+          variant: "success",
+          onConfirm: () => {}
+        });
         return true;
       } else {
-        alert(data.error || "Update failed");
+        // UPDATED: Error Modal
+        setModalConfig({
+          title: "WRITE_ERROR",
+          message: `ACCESS_DENIED: ${data.error || "Update protocol failed."}`,
+          variant: "danger",
+          onConfirm: () => {}
+        });
         return false;
       }
     } catch (err) {
-      alert("Server connection error");
+      setModalConfig({
+        title: "CONNECTION_FAILURE",
+        message: "UPLINK_LOST: Server connection error during data commit.",
+        variant: "danger",
+        onConfirm: () => {}
+      });
       return false;
     } finally {
       setLoading(false);
@@ -59,7 +86,16 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return alert("File size exceeds 2MB limit.");
+    
+    if (file.size > 2 * 1024 * 1024) {
+      setModalConfig({
+        title: "DATA_OVERFLOW",
+        message: "FILE_SIZE_EXCEEDS_LIMIT: Avatar must be under 2MB.",
+        variant: "danger",
+        onConfirm: () => {}
+      });
+      return;
+    }
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -80,21 +116,19 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
-  // --- TERMINAL THEME STYLES ---
+  // --- STYLES REMAINED UNCHANGED ---
   const inputStyle = {
     width: "100%", padding: "12px", marginTop: "8px", borderRadius: "4px",
     border: "1px solid #30363D", background: "#0D1117", color: "#C9D1D9",
     fontSize: "14px", boxSizing: "border-box" as const, outline: "none",
     fontFamily: "'Fira Code', monospace"
   };
-
   const btnStyle = {
     width: "100%", padding: "12px", marginTop: "12px", background: "#238636",
     color: "white", border: "none", borderRadius: "4px", cursor: "pointer", 
     fontWeight: "bold" as const, opacity: loading ? 0.7 : 1,
     fontFamily: "'Fira Code', monospace", fontSize: "12px"
   };
-
   const sectionCardStyle = {
     marginBottom: "20px", padding: "20px", border: "1px solid #30363D", 
     borderRadius: "8px", background: "#161B22"
@@ -137,64 +171,44 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         </label>
 
         <div style={{ textAlign: "left" }}>
-          
-          {/* Email (ReadOnly) */}
           <div style={sectionCardStyle}>
             <label style={{ fontSize: "11px", color: "#8B949E" }}>// E-MAIL</label>
-            <div style={{ 
-              marginTop: "8px", padding: "12px", borderRadius: "4px", 
-              background: "#0D1117", color: "#484F58", fontSize: "14px", 
-              border: "1px solid #21262D" 
-            }}>
+            <div style={{ marginTop: "8px", padding: "12px", borderRadius: "4px", background: "#0D1117", color: "#484F58", fontSize: "14px", border: "1px solid #21262D" }}>
               {email || "FETCHING..."}
             </div>
           </div>
 
-          {/* Username */}
           <div style={sectionCardStyle}>
             <label style={{ fontSize: "11px", color: "#8B949E" }}>// NAME</label>
             <input style={inputStyle} value={newUserName} onChange={(e) => setNewUserName(e.target.value)} />
             <button style={btnStyle} onClick={handleNameUpdate} disabled={loading}>COMMIT_NAME_CHANGE</button>
           </div>
 
-          {/* Password */}
           <div style={sectionCardStyle}>
             <label style={{ fontSize: "11px", color: "#8B949E" }}>// SECURITY_PROTOCOL</label>
-            <input 
-              type="password" 
-              style={inputStyle} 
-              placeholder="CURRENT_PASSWORD" 
-              value={currentPassword} 
-              onChange={(e) => setCurrentPassword(e.target.value)} 
-            />
-            <input 
-              type="password" 
-              style={inputStyle} 
-              placeholder="NEW_PASSWORD" 
-              value={newPassword} 
-              onChange={(e) => setNewPassword(e.target.value)} 
-            />
-            <button 
-              style={{ ...btnStyle, background: "#30363D" }} 
-              onClick={handlePasswordUpdate} 
-              disabled={loading}
-            >
-              CHANGE_PASSWORD
-            </button>
+            <input type="password" style={inputStyle} placeholder="CURRENT_PASSWORD" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <input type="password" style={inputStyle} placeholder="NEW_PASSWORD" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <button style={{ ...btnStyle, background: "#30363D" }} onClick={handlePasswordUpdate} disabled={loading}>CHANGE_PASSWORD</button>
           </div>
         </div>
 
-        <button 
-          onClick={() => router.push("/chat")} 
-          style={{ 
-            marginTop: "20px", background: "none", border: "none", 
-            color: "#8B949E", cursor: "pointer", fontSize: "12px",
-            textDecoration: "underline"
-          }}
-        >
+        <button onClick={() => router.push("/chat")} style={{ marginTop: "20px", background: "none", border: "none", color: "#8B949E", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>
           {`<<`} RETURN_TO_CHATS
         </button>
       </div>
+
+      {/* 3. Place Modal Component at the bottom */}
+      <ConfirmModal
+        isOpen={!!modalConfig}
+        title={modalConfig?.title}
+        message={modalConfig?.message || ""}
+        variant={modalConfig?.variant}
+        onConfirm={() => {
+          modalConfig?.onConfirm();
+          setModalConfig(null);
+        }}
+        onCancel={() => setModalConfig(null)}
+      />
     </div>
   );
 }

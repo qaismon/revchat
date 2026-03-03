@@ -380,6 +380,15 @@ const sendMessage = async (overrideContent?: string) => {
         .terminal-scroll::-webkit-scrollbar-thumb { background: #30363D; border-radius: 4px; }
         .fade-in { animation: fadeIn 0.2s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes rec-glow {
+  0% { box-shadow: 0 0 0px #ff333300; }
+  50% { box-shadow: 0 0 16px #ff333366; }
+  100% { box-shadow: 0 0 0px #ff333300; }
+}
+
+.rec-pulse {
+  animation: rec-glow 1.5s infinite ease-in-out;
+}
       `}</style>
 
       {/* Header */}
@@ -741,20 +750,46 @@ const sendMessage = async (overrideContent?: string) => {
             </button>
 
             <button 
-    onMouseDown={startRecording} 
-    onMouseUp={handleVoiceSend}
-    style={{
-      background: isRecording ? "#ff333322" : "transparent",
-      border: isRecording ? "1px solid #ff3333" : "1px solid #30363D",
-      color: isRecording ? "#ff3333" : "#8B949E",
-      borderRadius: "4px",
-      padding: "6px 10px",
-      cursor: "pointer",
-      transition: "all 0.2s"
-    }}
+  onMouseDown={startRecording} 
+  onMouseUp={handleVoiceSend}
+  className={isRecording ? "rec-pulse" : ""}
+  style={{
+    background: isRecording ? "#ff333322" : "transparent",
+    border: isRecording ? "1px solid #ff3333" : "1px solid #30363D",
+    color: isRecording ? "#ff3333" : "#8B949E",
+    borderRadius: "4px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
+    outline: "none"
+  }}
+  title={isRecording ? "RECORDING_STREAM..." : "START_VOICE_CAPTURE"}
+>
+  <svg 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2.5" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
   >
-    {isRecording ? "REC..." : "🎤"}
-  </button>
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+    <line x1="12" y1="19" x2="12" y2="23"></line>
+    <line x1="8" y1="23" x2="16" y2="23"></line>
+  </svg>
+  
+  {isRecording && (
+    <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>
+      REC
+    </span>
+  )}
+</button>
 
             <button 
               onClick={() => sendMessage()}

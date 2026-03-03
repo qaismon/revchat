@@ -86,13 +86,18 @@ app.prepare().then(() => {
       });
     });
 
-    // GROUP: Signal that a group was created, deleted, or members changed
-    // This allows clients to re-fetch their group list or active group
-    socket.on("trigger-group-update", (data) => {
-      // We broadcast this to everyone. Clients will decide if they need to refresh 
-      // based on whether they are in the group or if it's a new group they might be part of.
-      io.emit("group-updated", data);
-    });
+socket.on("trigger-group-update", (data) => {
+  if (data.action === "delete") {
+    io.emit("group-deleted", data.groupId); // Existing logic
+    io.emit("group-updated", data); 
+  } else if (data.action === "exit") {
+    // This ensures every client receives the 'exit' signal
+    // data should look like: { action: 'exit', groupId: '...', userId: '...' }
+    io.emit("group-updated", data); 
+  } else {
+    io.emit("group-updated", data);
+  }
+});
 
     // DISCONNECT LOGIC
     socket.on("disconnect", () => {
