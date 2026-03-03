@@ -19,7 +19,6 @@ async function importPublicKey(pem: string) {
     ["encrypt"]
   );
 }
-
 async function importPrivateKey(pem: string) {
   const binaryDer = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
   return window.crypto.subtle.importKey(
@@ -727,27 +726,41 @@ const sendMessage = async (overrideContent?: string) => {
 
             
             <button 
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              style={{ 
-                background: showEmojiPicker ? "#30363D" : "transparent", 
-                border: "none", 
-                color: "#caac03", 
-                cursor: "pointer",
-                borderRadius: "4px",
-                padding: "6px",
-                display: "flex",
-                alignItems: "center",
-                transition: "all 0.2s"
-              }}
-              title="insert_glyph"
-            >
-              <span style={{ 
-                fontSize: "22px", 
-                filter: showEmojiPicker ? "drop-shadow(0 0 5px rgba(221, 245, 5, 0.4))" : "none" 
-              }}>
-                {showEmojiPicker ? "✕" : "☺"}
-              </span>
-            </button>
+  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+  style={{ 
+    background: showEmojiPicker ? "rgba(202, 172, 3, 0.1)" : "transparent", 
+    border: showEmojiPicker ? "1px solid #caac03" : "1px solid transparent", 
+    color: "#caac03", 
+    cursor: "pointer",
+    borderRadius: "4px",
+    padding: "6px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s ease-in-out",
+    outline: "none",
+    boxShadow: showEmojiPicker ? "0 0 10px rgba(202, 172, 3, 0.2)" : "none"
+  }}
+  onMouseEnter={(e) => { if(!showEmojiPicker) e.currentTarget.style.background = "#30363D" }}
+  onMouseLeave={(e) => { if(!showEmojiPicker) e.currentTarget.style.background = "transparent" }}
+  title="INSERT_GLYPH_PROTOCOL"
+>
+  {showEmojiPicker ? (
+    // Close Icon
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  ) : (
+    // Smile Icon
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+      <line x1="9" y1="9" x2="9.01" y2="9"></line>
+      <line x1="15" y1="9" x2="15.01" y2="9"></line>
+    </svg>
+  )}
+</button>
 
             <button 
   onMouseDown={startRecording} 

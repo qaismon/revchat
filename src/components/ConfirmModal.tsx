@@ -37,7 +37,7 @@ export default function ConfirmModal({
     <div style={{ 
       position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", 
       background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", 
-      justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)", 
+      justifyContent: "center", zIndex: 9999, backdropFilter: "blur(-50px)", 
       fontFamily: "'Fira Code', monospace" 
     }}>
       {/* Animation Definitions */}

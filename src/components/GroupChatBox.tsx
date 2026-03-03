@@ -4,6 +4,7 @@ import { useSocket } from "@/hooks/useSocket";
 import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import ConfirmModal from "./ConfirmModal";
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 
 interface Member {
@@ -11,7 +12,6 @@ interface Member {
   username: string;
   avatar?: string;
 }
-
 interface GroupChatBoxProps {
   userId: string;
   userAvatar: string;
@@ -46,6 +46,8 @@ export default function GroupChatBox({
   const [allUsers, setAllUsers] = useState<Member[]>([]);
   const [addSearch, setAddSearch] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const messagesEndRef = { current: null as HTMLDivElement | null };
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const [modalConfig, setModalConfig] = useState<{
@@ -84,6 +86,8 @@ export default function GroupChatBox({
       if (msg.senderId === userId) return;
       setMessages((prev) => [...prev, msg]);
     };
+
+ 
 
     const handleTyping = ({ fromName, isTyping }: { from: string; fromName: string; isTyping: boolean }) => {
       setTypingUsers((prev) => {
@@ -344,6 +348,10 @@ const handleDeleteGroup = () => {
     addSearch === "" || u.username.toLowerCase().includes(addSearch.toLowerCase())
   );
 
+       const onEmojiClick = (emojiData: any) => {
+    setText((prev) => prev + emojiData.emoji);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#090b0f", border: "2px solid #6e40c9", borderRadius: "8px", margin: "10px", boxShadow: "0 8px 32px rgba(110,64,201,0.2)", fontFamily: "'Fira Code', monospace", overflow: "hidden" }}>
       <style>{`
@@ -561,22 +569,103 @@ const handleDeleteGroup = () => {
             }}
             placeholder="type_group_message..."
           />
-          <button 
-            onMouseDown={startRecording} 
-            onMouseUp={handleVoiceSend}
-            style={{
-              background: isRecording ? "#ff333322" : "transparent",
-              border: isRecording ? "1px solid #ff3333" : "1px solid #6e40c9",
-              color: isRecording ? "#ff3333" : "#8B949E",
-              borderRadius: "4px",
-              padding: "6px 10px",
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-          >
-            {isRecording ? "REC..." : "🎤"}
-          </button>
-          <button
+
+          {showEmojiPicker && (
+                     <div style={{ position: "absolute", bottom: "100%", right: "0", marginBottom: "12px", zIndex: 1000, boxShadow: "0 10px 25px rgba(0,0,0,0.5)" }}>
+                       <EmojiPicker 
+                         theme={Theme.DARK} 
+                         onEmojiClick={onEmojiClick}
+                         skinTonesDisabled
+                         searchPlaceholder="grep emoji..."
+                         width={300}
+                         height={400}
+                       />
+                     </div>
+                   )}
+         
+                   <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+         
+                     
+                     <button 
+           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+           style={{ 
+             background: showEmojiPicker ? "rgba(202, 172, 3, 0.1)" : "transparent", 
+             border: showEmojiPicker ? "1px solid #caac03" : "1px solid transparent", 
+             color: "#caac03", 
+             cursor: "pointer",
+             borderRadius: "4px",
+             padding: "6px",
+             display: "flex",
+             alignItems: "center",
+             justifyContent: "center",
+             transition: "all 0.2s ease-in-out",
+             outline: "none",
+             boxShadow: showEmojiPicker ? "0 0 10px rgba(202, 172, 3, 0.2)" : "none"
+           }}
+           onMouseEnter={(e) => { if(!showEmojiPicker) e.currentTarget.style.background = "#30363D" }}
+           onMouseLeave={(e) => { if(!showEmojiPicker) e.currentTarget.style.background = "transparent" }}
+           title="INSERT_GLYPH_PROTOCOL"
+         >
+           {showEmojiPicker ? (
+             // Close Icon
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+               <line x1="18" y1="6" x2="6" y2="18"></line>
+               <line x1="6" y1="6" x2="18" y2="18"></line>
+             </svg>
+           ) : (
+             // Smile Icon
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+               <circle cx="12" cy="12" r="10"></circle>
+               <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+               <line x1="9" y1="9" x2="9.01" y2="9"></line>
+               <line x1="15" y1="9" x2="15.01" y2="9"></line>
+             </svg>
+           )}
+         </button>
+         
+                     <button 
+           onMouseDown={startRecording} 
+           onMouseUp={handleVoiceSend}
+           className={isRecording ? "rec-pulse" : ""}
+           style={{
+             background: isRecording ? "#ff333322" : "transparent",
+             border: isRecording ? "1px solid #ff3333" : "1px solid #30363D",
+             color: isRecording ? "#ff3333" : "#8B949E",
+             borderRadius: "4px",
+             padding: "8px 10px",
+             cursor: "pointer",
+             display: "flex",
+             alignItems: "center",
+             justifyContent: "center",
+             transition: "all 0.2s",
+             outline: "none"
+           }}
+           title={isRecording ? "RECORDING_STREAM..." : "START_VOICE_CAPTURE"}
+         >
+           <svg 
+             width="16" 
+             height="16" 
+             viewBox="0 0 24 24" 
+             fill="none" 
+             stroke="currentColor" 
+             strokeWidth="2.5" 
+             strokeLinecap="round" 
+             strokeLinejoin="round"
+           >
+             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+             <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+             <line x1="12" y1="19" x2="12" y2="23"></line>
+             <line x1="8" y1="23" x2="16" y2="23"></line>
+           </svg>
+           
+           {isRecording && (
+             <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>
+               REC
+             </span>
+           )}
+         </button>
+         
+                    <button
             onClick={sendMessage}
             style={{ background: "#6e40c922", color: "#a78bfa", border: "1px solid #6e40c9", borderRadius: "4px", padding: "6px 16px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold", transition: "all 0.2s" }}
             onMouseOver={(e) => (e.currentTarget.style.background = "#6e40c944")}
@@ -584,6 +673,8 @@ const handleDeleteGroup = () => {
           >
             SEND
           </button>
+                   </div>
+          
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", padding: "0 4px" }}>
           <span style={{ fontSize: "10px", color: "#484F58" }}>// group_channel: {groupName?.toLowerCase()}</span>
@@ -604,3 +695,6 @@ const handleDeleteGroup = () => {
     </div>
   );
 }
+
+
+

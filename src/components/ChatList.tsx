@@ -206,13 +206,43 @@ await fetch("/api/auth/logout", { method: "POST" });
   color: #fff !important; 
   transform: scale(1.1);
   filter: drop-shadow(0 0 5px #7EE787);
+
+  .sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #30363D transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #30363D;
+  border-radius: 10px;
+}
+
+/* Add a subtle fade-in for the whole list */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sidebar-scroll > div {
+  animation: fadeInUp 0.4s ease forwards;
+}
 }`}</style>
 
-      {/* Title Bar */}
-      <div style={{ background: "#161B22", padding: "16px", borderBottom: "1px solid #30363D", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: "11px", fontWeight: "bold", color: "#8B949E", letterSpacing: "1px" }}>RevChat.v1</span>
-        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#238636", boxShadow: "0 0 5px #238636" }}></div>
-      </div>
+<div style={{ background: "#161B22", padding: "16px", borderBottom: "1px solid #30363D", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ display: "flex", alignItems: "center" }}>
+    
+    <span style={{ fontSize: "10px", fontWeight: "bold", color: "#9ea2a7", letterSpacing: "1px", textTransform: "uppercase" }}>
+      RevChat.v1
+    </span>
+  </div>
+
+  {/* Right Side: Status Indicator */}
+  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#7EE787", boxShadow: "0 0 5px #7EE787" }}></div>
+</div>
 
       {/* Tab Switcher */}
       <div style={{ display: "flex", background: "#0D1117", borderBottom: "1px solid #30363D" }}>
@@ -262,100 +292,151 @@ await fetch("/api/auth/logout", { method: "POST" });
       </div>
 
       {/* List */}
-      <div className="sidebar-scroll" style={{ flex: 1, overflowY: "auto" }}>
+      <div className="sidebar-scroll" style={{ 
+  flex: 1, 
+  overflowY: "auto", 
+  padding: "10px", // Breathing room
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px" // Separation between "cards"
+}}>
 
-        {/* DMs Tab */}
-        {activeTab === "dms" && displayedUsers.map((user) => {
-          const userIdStr = String(user._id);
-          const isSelected = String(selectedUserId) === userIdStr;
-          const isOnline = onlineUsers.includes(userIdStr);
-          const unreadCount = unreadCounts[userIdStr] || 0;
+  {/* DMs Tab */}
+  {activeTab === "dms" && displayedUsers.map((user) => {
+    const userIdStr = String(user._id);
+    const isSelected = String(selectedUserId) === userIdStr;
+    const isOnline = onlineUsers.includes(userIdStr);
+    const unreadCount = unreadCounts[userIdStr] || 0;
 
-          return (
-            <div
-              key={userIdStr}
-              onClick={() => {
-                setUnreadCounts(prev => ({ ...prev, [userIdStr]: 0 }));
-                onSelect(userIdStr);
-              }}
-              style={{ padding: "12px 16px", borderLeft: isSelected ? "3px solid #58A6FF" : "3px solid transparent", background: isSelected ? "#0e131a" : "transparent", cursor: "pointer", display: "flex", gap: "12px", alignItems: "center", borderBottom: "1px solid #21262d", transition: "background 0.2s" }}
-              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "#161B22"; }}
-              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
-            >
-              <div style={{ width: "32px", height: "32px", borderRadius: "4px", border: isSelected ? "1px solid #58A6FF" : "1px solid #30363D", background: "#0D1117", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "14px", fontWeight: "bold", color: isOnline ? "#7EE787" : "#484F58", flexShrink: 0, overflow: "hidden" }}>
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  user.username?.[0].toUpperCase()
-                )}
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontWeight: unreadCount > 0 || isSelected ? "bold" : "normal", fontSize: "13px", color: isSelected ? "#58A6FF" : "#C9D1D9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {user.username?.toLowerCase()}{unreadCount > 0 ? " [!]" : ""}
-                </div>
-                <div style={{ fontSize: "10px", color: isOnline ? "#7EE787" : "#484F58" }}>
-                  {isOnline ? "// ONLINE" : "// OFFLINE"}
-                </div>
-              </div>
-              {unreadCount > 0 && (
-                <div style={{ background: "#238636", color: "white", padding: "1px 6px", fontSize: "10px", fontWeight: "bold", borderRadius: "10px" }}>
-                  {unreadCount}
-                </div>
-              )}
-            </div>
-          );
-        })}
+    return (
+      <div
+        key={userIdStr}
+        onClick={() => {
+          setUnreadCounts(prev => ({ ...prev, [userIdStr]: 0 }));
+          onSelect(userIdStr);
+        }}
+        style={{ 
+          padding: "14px 14px", 
+          borderRadius: "8px",
+          background: isSelected ? "rgba(88, 166, 255, 0.1)" : "transparent", 
+          cursor: "pointer", 
+          display: "flex", 
+          gap: "14px", 
+          alignItems: "center", 
+          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+          border: isSelected ? "1px solid rgba(88, 166, 255, 0.4)" : "1px solid transparent",
+          position: "relative",
+          overflow: "hidden"
+        }}
+        onMouseEnter={(e) => { 
+          if (!isSelected) {
+            e.currentTarget.style.backgroundColor = "#161B22";
+            e.currentTarget.style.transform = "translateX(6px)";
+          }
+        }}
+        onMouseLeave={(e) => { 
+          if (!isSelected) {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.transform = "translateX(0px)";
+          }
+        }}
+      >
 
-        {/* Groups Tab */}
-        {activeTab === "groups" && (
-          <>
-            {displayedGroups.length === 0 && (
-              <div style={{ padding: "20px", color: "#484F58", textAlign: "center", fontSize: "11px" }}>
-                <div style={{ marginBottom: "6px" }}>👥</div>
-                <div>No groups yet.</div>
-                <div style={{ opacity: 0.7 }}>Create one below!</div>
-              </div>
+        {/* Avatar with Integrated Status Dot */}
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div style={{ 
+            width: "38px", height: "38px", borderRadius: "10px", 
+            border: isSelected ? "2px solid #58A6FF" : "1px solid #30363D", 
+            background: "#0D1117", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            {user.avatar ? (
+              <img src={user.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <span style={{ color: isSelected ? "#58A6FF" : "#8B949E", fontWeight: "bold" }}>{user.username?.[0].toUpperCase()}</span>
             )}
-            {displayedGroups.map((group) => {
-              const gIdStr = String(group._id);
-              const isSelected = String(selectedGroupId) === gIdStr;
-              const unreadCount = unreadGroupCounts[gIdStr] || 0;
-              const isAdmin = String(group.admin?._id || group.admin) === String(currentUserId);
+          </div>
+          <div style={{ 
+            position: "absolute", bottom: "-2px", right: "-2px", 
+            width: "12px", height: "12px", borderRadius: "50%", 
+            background: isOnline ? "#7EE787" : "#484F58", 
+            border: "2px solid #0d1117",
+            boxShadow: isOnline ? "0 0 8px rgba(126, 231, 135, 0.4)" : "none"
+          }} />
+        </div>
 
-              return (
-                <div
-                  key={gIdStr}
-                  onClick={() => {
-                    setUnreadGroupCounts(prev => ({ ...prev, [gIdStr]: 0 }));
-                    onSelectGroup(group);
-                  }}
-                  style={{ padding: "12px 16px", borderLeft: isSelected ? "3px solid #a78bfa" : "3px solid transparent", background: isSelected ? "#0d0a1a" : "transparent", cursor: "pointer", display: "flex", gap: "12px", alignItems: "center", borderBottom: "1px solid #21262d", transition: "background 0.2s" }}
-                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "#161B22"; }}
-                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
-                >
-                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", border: isSelected ? "1px solid #a78bfa" : "1px solid #6e40c9", background: "#6e40c922", display: "flex", justifyContent: "center", alignItems: "center", fontSize: "14px", flexShrink: 0 }}>
-                    👥
-                  </div>
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    <div style={{ fontWeight: unreadCount > 0 || isSelected ? "bold" : "normal", fontSize: "13px", color: isSelected ? "#a78bfa" : "#C9D1D9", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {group.name?.toLowerCase()}{unreadCount > 0 ? " [!]" : ""}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#6e40c9" }}>
-                      // {group.members?.length || 0} member{group.members?.length !== 1 ? "s" : ""}{isAdmin ? " · admin" : ""}
-                    </div>
-                  </div>
-                  {unreadCount > 0 && (
-                    <div style={{ background: "#6e40c9", color: "white", padding: "1px 6px", fontSize: "10px", fontWeight: "bold", borderRadius: "10px" }}>
-                      {unreadCount}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <div style={{ 
+            fontWeight: unreadCount > 0 || isSelected ? "600" : "400", 
+            fontSize: "14px", color: isSelected ? "#8f8e8e" : "#C9D1D9", 
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            display: "flex", alignItems: "center", gap: "6px"
+          }}>
+            {user.username?.toLowerCase()}
+            {unreadCount > 0 && <span style={{ color: "#7EE787", fontSize: "6px", fontWeight: "bold" }}>●</span>}
+          </div>
+          <div style={{ fontSize: "9px", color: isOnline ? "#7EE787" : "#484F58", letterSpacing: "0.5px" }}>
+            {isOnline ? "ONLINE" : "OFFLINE"}
+          </div>
+        </div>
+
+        {unreadCount > 0 && (
+          <div style={{ 
+            background: "#238636", color: "white", minWidth: "20px", height: "20px", 
+            padding: "0 6px", fontSize: "11px", fontWeight: "bold", 
+            borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center"
+          }}>
+            {unreadCount}
+          </div>
         )}
       </div>
+    );
+  })}
 
+  {/* Groups Tab (Purple Theme) */}
+  {activeTab === "groups" && displayedGroups.map((group) => {
+    const isSelected = String(selectedGroupId) === String(group._id);
+    const unreadCount = unreadGroupCounts[group._id] || 0;
+    
+    return (
+      <div
+        key={group._id}
+        onClick={() => onSelectGroup(group)}
+        style={{ 
+          padding: "10px 14px", borderRadius: "8px",
+          background: isSelected ? "rgba(167, 139, 250, 0.1)" : "transparent", 
+          cursor: "pointer", display: "flex", gap: "14px", alignItems: "center",
+          transition: "all 0.25s ease",
+          border: isSelected ? "1px solid rgba(167, 139, 250, 0.4)" : "1px solid transparent"
+        }}
+        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "#161B22"; }}
+        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
+      >
+        <div style={{ 
+          width: "38px", height: "38px", borderRadius: "50%", 
+          background: isSelected ? "#a78bfa" : "#30363D", 
+          display: "flex", justifyContent: "center", alignItems: "center", fontSize: "16px"
+        }}>
+          <span style={{ filter: isSelected ? "brightness(0) invert(1)" : "none" }}>👥</span>
+        </div>
+        
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <div style={{ fontWeight: isSelected ? "600" : "400", fontSize: "14px", color: isSelected ? "#fff" : "#C9D1D9" }}>
+            {group.name?.toLowerCase()}
+          </div>
+          <div style={{ fontSize: "10px", color: "#8B949E" }}>
+            {group.members?.length} members
+          </div>
+        </div>
+        
+        {unreadCount > 0 && (
+          <div style={{ background: "#a78bfa", color: "#000", minWidth: "20px", height: "20px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "bold" }}>
+            {unreadCount}
+          </div>
+        )}
+      </div>
+    );
+  })}
+</div>
       {/* Utility Bar */}
 <div style={{ padding: "10px 10px", borderTop: "1px solid #30363D", background: "#161B22", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
     

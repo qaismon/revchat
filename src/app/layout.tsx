@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fira_Code } from 'next/font/google'; // 1. Import Fira_Code
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+// 2. Configure the font
+const firaCode = Fira_Code({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-fira-code', // Useful if you want to use it via CSS variables
 });
 
 export const metadata: Metadata = {
   title: "RevChat",
-  description: "AI assisted code review",
+  description: "Secure terminal-based communication protocol", // Thematic update
 };
 
 export default function RootLayout({
@@ -24,9 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      {/* 3. Apply the class to the body and ensure antialiasing */}
+      <body className={`${firaCode.className} antialiased`}>
         {children}
       </body>
     </html>
