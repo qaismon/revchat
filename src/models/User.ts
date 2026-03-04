@@ -6,14 +6,12 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   avatar: { type: String, default: "" },
   
-  // --- ADDED FOR E2EE ---
-  // We store this as a String (Base64) so it's easy to send over JSON
+
   publicKey: { 
     type: String, 
     default: null 
   },
   
-  // Optional: Track if the user has encryption enabled
   isEncryptionEnabled: { 
     type: Boolean, 
     default: false 

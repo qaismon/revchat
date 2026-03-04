@@ -23,12 +23,10 @@ app.prepare().then(() => {
     socket.on("join", (userId) => {
       socket.join(userId);
       
-      // Map the userId to this specific socket
       onlineUsers.set(userId, socket.id);
       
       console.log(`✅ User [${userId}] joined. Online count: ${onlineUsers.size}`);
       
-      // Broadcast the updated list of userIds to all clients
       io.emit("get-online-users", Array.from(onlineUsers.keys()));
     });
 
@@ -57,7 +55,7 @@ app.prepare().then(() => {
       io.to(senderId).emit("messages-seen", { seenBy: receiverId });
     });
 
-    // GROUP: Join a group room
+    // GROUP: Join a group 
     socket.on("join-group", (groupId) => {
       socket.join(`group:${groupId}`);
       console.log(`🟣 Socket [${socket.id}] joined group room [${groupId}]`);
@@ -76,9 +74,7 @@ app.prepare().then(() => {
       io.to(`group:${groupId}`).emit("receive-group-message", payload);
     });
 
-    // GROUP: Typing indicator inside a group
     socket.on("group-typing", ({ groupId, from, fromName, isTyping }) => {
-      // Broadcast to group room but exclude the sender
       socket.to(`group:${groupId}`).emit("group-display-typing", {
         from,
         fromName,
@@ -88,11 +84,9 @@ app.prepare().then(() => {
 
 socket.on("trigger-group-update", (data) => {
   if (data.action === "delete") {
-    io.emit("group-deleted", data.groupId); // Existing logic
+    io.emit("group-deleted", data.groupId);
     io.emit("group-updated", data); 
   } else if (data.action === "exit") {
-    // This ensures every client receives the 'exit' signal
-    // data should look like: { action: 'exit', groupId: '...', userId: '...' }
     io.emit("group-updated", data); 
   } else {
     io.emit("group-updated", data);
@@ -103,7 +97,6 @@ socket.on("trigger-group-update", (data) => {
     socket.on("disconnect", () => {
       let disconnectedUserId = null;
       
-      // Find which userId belongs to this socketId
       for (let [userId, socketId] of onlineUsers.entries()) {
         if (socketId === socket.id) {
           disconnectedUserId = userId;
@@ -114,7 +107,6 @@ socket.on("trigger-group-update", (data) => {
       
       console.log(`❌ User [${disconnectedUserId}] disconnected.`);
       
-      // Update everyone that someone went offline
       io.emit("get-online-users", Array.from(onlineUsers.keys()));
     });
   });

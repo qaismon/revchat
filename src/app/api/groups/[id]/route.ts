@@ -6,8 +6,6 @@ import Group from "@/models/Group";
 import GroupMessage from "@/models/GroupMessage";
 import { io } from "socket.io-client";
 
-// In production, you'd want a proper singleton or server-side socket emitter,
-// but for this simple implementation we can use a client to hit the local server
 const socket = io("http://localhost:3000");
 
 function getUserFromRequest(req: Request): string | null {
@@ -49,7 +47,7 @@ export async function GET(
   return NextResponse.json(group);
 }
 
-// PATCH /api/groups/[id] - Update name/description (admin only)
+// PATCH /api/groups/[id] 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -91,7 +89,6 @@ export async function DELETE(
   if (String(group.admin) !== userId)
     return NextResponse.json({ error: "Only admin can delete this group" }, { status: 403 });
 
-  // Cascade-delete all messages
   await GroupMessage.deleteMany({ groupId: new mongoose.Types.ObjectId(id) });
   await Group.findByIdAndDelete(id);
 

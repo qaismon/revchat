@@ -5,7 +5,6 @@ import { connectDB } from "@/lib/db";
 import Group from "@/models/Group";
 import User from "@/models/User";
 
-// Helper to get current user from cookie
 function getUserFromRequest(req: Request): string | null {
   const cookie = req.headers.get("cookie");
   if (!cookie) return null;
@@ -22,7 +21,6 @@ function getUserFromRequest(req: Request): string | null {
   }
 }
 
-// GET /api/groups - List all groups the current user is a member of
 export async function GET(req: Request) {
   const userId = getUserFromRequest(req);
   if (!userId) return NextResponse.json(null, { status: 401 });
@@ -52,7 +50,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Group name is required" }, { status: 400 });
   }
 
-  // Always include the creator as admin and member
   const allMemberIds = Array.from(
     new Set([userId, ...(memberIds || [])])
   ).map((id) => new mongoose.Types.ObjectId(id as string));

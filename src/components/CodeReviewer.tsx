@@ -4,7 +4,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Clipboard, Check, Terminal, Zap } from "lucide-react";
 import hljs from 'highlight.js';
-import VoiceMessage from "./VoiceMessage"; // Adjust path as needed
+import VoiceMessage from "./VoiceMessage"; 
 
 interface CodeBlockProps {
   code: string;

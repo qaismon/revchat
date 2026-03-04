@@ -23,7 +23,7 @@ function getUserFromRequest(req: Request): string | null {
   }
 }
 
-// POST /api/groups/[id]/members - Add a member (admin only)
+// POST /api/groups/[id]/members 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

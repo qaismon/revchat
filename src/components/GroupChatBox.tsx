@@ -82,7 +82,6 @@ export default function GroupChatBox({
 
     const handleGroupMessage = (msg: any) => {
       if (msg.groupId !== groupId) return;
-      // Avoid echoing own messages (we add them optimistically)
       if (msg.senderId === userId) return;
       setMessages((prev) => [...prev, msg]);
     };
@@ -121,7 +120,6 @@ export default function GroupChatBox({
       .catch(console.error);
   }, [showAddMember, userId]);
 
-  // Inside GroupChatBox component
 useEffect(() => {
   const socket = socketRef.current;
   if (!socket) return;
@@ -130,20 +128,17 @@ useEffect(() => {
     const isThisGroup = String(data.groupId) === String(groupId);
     const isMe = String(data.userId) === String(userId);
 
-    // Action: REMOVE (Kicked by Admin)
     if (data.action === "remove" && isThisGroup && isMe) {
-  // 1. Show the Modal with only an "OK" option
   setModalConfig({
     title: "ACCESS_REVOKED",
     message: "CRITICAL: Your access to this group has been terminated by an administrator.",
     variant: "danger",
     onConfirm: () => {
-      onGroupDeleted?.(); // Only close the chat AFTER they click OK
+      onGroupDeleted?.(); 
     }
   });
 }
 
-    // Action: DELETE (Group Destroyed)
     if (data.action === "delete" && isThisGroup) {
       onGroupDeleted?.();
     }

@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import GroupMessage from "@/models/GroupMessage";
 
-// GET /api/group-messages?groupId=... - Fetch all messages for a group
+// GET /api/group-messages?groupId
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const groupId = searchParams.get("groupId");
@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   return NextResponse.json(messages);
 }
 
-// POST /api/group-messages - Save a new group message
+// POST /api/group-messages
 export async function POST(req: Request) {
   await connectDB();
 
