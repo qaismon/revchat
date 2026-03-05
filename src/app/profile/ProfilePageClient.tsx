@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ConfirmModal from "@/components/ConfirmModal";
+import { useUploadThing } from "@/utils/uploadthing";
 
 export default function ProfilePageClient({ userId }: { userId: string }) {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     variant: "danger" | "info" | "success";
     onConfirm: () => void;
   } | null>(null);
+  const { startUpload, isUploading } = useUploadThing("avatarUploader");
 
   useEffect(() => {
     if (!userId) return;
@@ -86,42 +88,12 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     try {
       setLoading(true);
 
-      // STEP 1: Get presigned URL from UploadThing
-      const presignRes = await fetch("/api/uploadthing?actionType=upload&slug=avatarUploader", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          files: [{ name: file.name, size: file.size, type: file.type }],
-        }),
-      });
+      const uploaded = await startUpload([file]);
+      const avatarUrl = uploaded?.[0]?.url;
 
-      const presignData = await presignRes.json();
-      const fileInfo = Array.isArray(presignData) ? presignData[0] : presignData?.data?.[0];
-      
-      if (!fileInfo?.url) {
-        console.error("Presign Data Error:", presignData);
-        throw new Error("PRESIGN_FAILED");
+      if (!avatarUrl) {
+        throw new Error("UPLOADTHING_URL_MISSING");
       }
-
-      // STEP 2: Upload raw binary to CDN
-      // We use a clean Headers object to avoid "Unsupported Media Type" errors
-      const uploadHeaders = new Headers();
-      uploadHeaders.append("Content-Type", file.type);
-
-      const uploadRes = await fetch(fileInfo.url, {
-        method: "PUT",
-        body: file, // Sending the file object directly is the standard for raw binary PUT
-        headers: uploadHeaders,
-      });
-
-      if (!uploadRes.ok) {
-        const errorText = await uploadRes.text();
-        console.error("CDN Error Details:", errorText);
-        throw new Error("CDN_UPLOAD_FAILED");
-      }
-
-      // STEP 3: Save the public URL to your Database
-      const avatarUrl = `https://utfs.io/f/${fileInfo.key}`;
       
       // triggerUpdate calls your /api/users/update route
       const success = await triggerUpdate("avatar", avatarUrl);
@@ -135,7 +107,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
       console.error("Detailed Upload Error:", err);
       setModalConfig({
         title: "UPLOAD_FAILURE",
-        message: "UPLINK_LOST: The CDN rejected the file format (415) or the database sync failed.",
+        message: "UPLINK_LOST: Avatar upload succeeded but URL sync failed.",
         variant: "danger",
         onConfirm: () => {}
       });
@@ -195,7 +167,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
           ) : (
             <div style={{ fontSize: "40px", color: "#30363D" }}>{userName?.[0]?.toUpperCase()}</div>
           )}
-          {loading && (
+          {(loading || isUploading) && (
             <div style={{ 
               position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", 
               color: "#7EE787", display: "flex", alignItems: "center", 
