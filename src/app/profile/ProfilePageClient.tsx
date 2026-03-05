@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-// 1. Import your new modal
 import ConfirmModal from "@/components/ConfirmModal";
 
 export default function ProfilePageClient({ userId }: { userId: string }) {
@@ -15,7 +14,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 2. Setup Modal State
   const [modalConfig, setModalConfig] = useState<{
     title: string;
     message: string;
@@ -52,7 +50,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
       });
       const data = await res.json();
       if (res.ok) {
-        // UPDATED: Success Modal
         setModalConfig({
           title: "SYNC_SUCCESS",
           message: `${type.toUpperCase()} modified successfully.`,
@@ -61,7 +58,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         });
         return true;
       } else {
-        // UPDATED: Error Modal
         setModalConfig({
           title: "WRITE_ERROR",
           message: `ACCESS_DENIED: ${data.error || "Update protocol failed."}`,
@@ -83,30 +79,74 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
-    if (file.size > 2 * 1024 * 1024) {
+
+    try {
+      setLoading(true);
+
+      // STEP 1: Get presigned URL from UploadThing
+      const presignRes = await fetch("/api/uploadthing?actionType=upload&slug=avatarUploader", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: [{ name: file.name, size: file.size, type: file.type }],
+        }),
+      });
+
+      const presignData = await presignRes.json();
+      const fileInfo = Array.isArray(presignData) ? presignData[0] : presignData?.data?.[0];
+      
+      if (!fileInfo?.url) {
+        console.error("Presign Data Error:", presignData);
+        throw new Error("PRESIGN_FAILED");
+      }
+
+      // STEP 2: Upload raw binary to CDN
+      // We use a clean Headers object to avoid "Unsupported Media Type" errors
+      const uploadHeaders = new Headers();
+      uploadHeaders.append("Content-Type", file.type);
+
+      const uploadRes = await fetch(fileInfo.url, {
+        method: "PUT",
+        body: file, // Sending the file object directly is the standard for raw binary PUT
+        headers: uploadHeaders,
+      });
+
+      if (!uploadRes.ok) {
+        const errorText = await uploadRes.text();
+        console.error("CDN Error Details:", errorText);
+        throw new Error("CDN_UPLOAD_FAILED");
+      }
+
+      // STEP 3: Save the public URL to your Database
+      const avatarUrl = `https://utfs.io/f/${fileInfo.key}`;
+      
+      // triggerUpdate calls your /api/users/update route
+      const success = await triggerUpdate("avatar", avatarUrl);
+      
+      if (success) {
+        setAvatar(avatarUrl);
+        router.refresh(); 
+      }
+
+    } catch (err) {
+      console.error("Detailed Upload Error:", err);
       setModalConfig({
-        title: "DATA_OVERFLOW",
-        message: "FILE_SIZE_EXCEEDS_LIMIT: Avatar must be under 2MB.",
+        title: "UPLOAD_FAILURE",
+        message: "UPLINK_LOST: The CDN rejected the file format (415) or the database sync failed.",
         variant: "danger",
         onConfirm: () => {}
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = async () => {
-      const base64 = reader.result as string;
-      const success = await triggerUpdate("avatar", base64);
-      if (success) setAvatar(base64);
-    };
   };
-
-  const handleNameUpdate = () => triggerUpdate("username", newUserName);
+  const handleNameUpdate = async () => {
+    const success = await triggerUpdate("username", newUserName);
+    if (success) setUserName(newUserName);
+  };
 
   const handlePasswordUpdate = async () => {
     const success = await triggerUpdate("password", newPassword, { currentPassword });
@@ -116,7 +156,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
-  // --- STYLES REMAINED UNCHANGED ---
+  // Styles kept as per your original design
   const inputStyle = {
     width: "100%", padding: "12px", marginTop: "8px", borderRadius: "4px",
     border: "1px solid #30363D", background: "#0D1117", color: "#C9D1D9",
@@ -145,7 +185,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         <h2 style={{ color: "#58A6FF", marginBottom: "5px", fontSize: "20px" }}>{">"} USER_SETTINGS</h2>
         <p style={{ color: "#484F58", fontSize: "12px", marginBottom: "30px" }}>// modify_account_parameters</p>
 
-        {/* Avatar Section */}
         <div style={{ 
           position: "relative", margin: "0 auto 15px", width: "120px", height: "120px", 
           borderRadius: "8px", background: "#0D1117", overflow: "hidden", 
@@ -161,13 +200,15 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
               position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)", 
               color: "#7EE787", display: "flex", alignItems: "center", 
               justifyContent: "center", fontSize: "10px" 
-            }}>WRITING...</div>
+            }}>
+              SYNCING...
+            </div>
           )}
         </div>
 
         <label style={{ color: "#58A6FF", cursor: "pointer", fontSize: "12px", display: "block", marginBottom: "30px" }}>
           [ CHANGE_PROFILE_PHOTO ]
-          <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarChange} style={{ display: "none" }} />
         </label>
 
         <div style={{ textAlign: "left" }}>
@@ -197,7 +238,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         </button>
       </div>
 
-      {/* 3. Place Modal Component at the bottom */}
       <ConfirmModal
         isOpen={!!modalConfig}
         title={modalConfig?.title}

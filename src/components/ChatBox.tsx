@@ -4,7 +4,8 @@ import { useSocket } from "@/hooks/useSocket";
 import { useRouter } from "next/navigation";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import CodeReviewer from "./CodeReviewer";
-import { useAudioRecorder } from "@/hooks/useAudioRecorder"; 
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import { useUploadThing } from "@/utils/uploadthing"; // ← NEW
 
 
 
@@ -51,7 +52,10 @@ export default function ChatBox({ userId, peerId }: { userId: string, peerId: st
 
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const [isReviewMode, setIsReviewMode] = useState(false);
-const [reviewData, setReviewData] = useState({ id: "", code: "", comments: "" });
+  const [reviewData, setReviewData] = useState({ id: "", code: "", comments: "" });
+
+  // ← NEW: UploadThing hook for voice messages
+  const { startUpload: uploadVoice, isUploading: isUploadingVoice } = useUploadThing("voiceUploader");
 
 const requestAIDescription = async (msgId: string, rawCode: string) => {
   try {
@@ -109,7 +113,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
     };
     setMessages(prev => [...prev, loadingMsg]);
     setDecryptedMessages(prev => ({ ...prev, [aiMsgId]: "System: Analyzing code structure..." }));
-    
 
     const res = await fetch("/api/ai/review", {
       method: "POST",
@@ -126,10 +129,23 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
   }
 };
 
+ // ← UPDATED: stopRecording now returns a Blob, we upload it to UploadThing
  const handleVoiceSend = async () => {
-  const base64Audio = await stopRecording();
-  if (base64Audio) {
-    await sendMessage(`AUDIO_PACKET:${base64Audio}`);
+  const audioBlob = await stopRecording();
+  if (!audioBlob) return;
+
+  try {
+    const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+    const uploaded = await uploadVoice([file]);
+
+    if (uploaded?.[0]?.url) {
+      // URL is sent just like before — E2EE encrypts it transparently
+      await sendMessage(`AUDIO_PACKET:${uploaded[0].url}`);
+    } else {
+      console.error("Voice upload failed: no URL returned");
+    }
+  } catch (err) {
+    console.error("Voice upload error:", err);
   }
 };
 
@@ -180,7 +196,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
             const isMe = m.senderId === userId;
             const rawData = isMe ? m.contentSender : m.content;
 
-
     if (m.senderId === "AI_BOT") {
       newDecrypted[msgId] = m.content;
       updated = true;
@@ -193,7 +208,6 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
               updated = true;
               continue;
             }
-
 
             const { ct, iv, wk } = JSON.parse(rawData);
 
@@ -443,26 +457,21 @@ const sendMessage = async (overrideContent?: string) => {
   const msgId = m._id || m.createdAt;
   const displayContent = decryptedMessages[msgId] || "Decrypting packet...";
   
-  // NEW: Identify if this is an AI system report
   const isAI = m.senderId === "AI_BOT" || displayContent.startsWith("### 🧠 LOGIC_EXPLAINED");
 
   return (
     <div key={msgId} style={{ 
-      // AI reports sit in the center, User/Peer sit on sides
       alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"),
       width: isAI ? "95%" : "auto", 
       maxWidth: "85%", 
       borderRadius: "4px", 
       padding: "12px 16px",
-      // Distinct border for AI (double line or blue glow)
       border: isAI ? "1px double #58A6FF" : (isMe ? "1px solid #238636" : "1px solid #30363D"),
-      // Darker background for AI to make it look like a system log
       background: isAI ? "#0d1117" : (isMe ? "#23863622" : "#161B22"),
       color: isAI ? "#C9D1D9" : (isMe ? "#7EE787" : "#C9D1D9"),
       boxShadow: isAI ? "0 0 15px rgba(58, 166, 255, 0.05)" : "none",
       position: "relative"
     }}>
-      {/* ADD A SYSTEM TAG FOR AI */}
       {isAI && (
         <div style={{ fontSize: '9px', color: '#58A6FF', marginBottom: '8px', borderBottom: '1px solid #58A6FF33', paddingBottom: '4px' }}>
           [SYSTEM_DIAGNOSTIC_REPORT] // SOURCE: NEURAL_ENGINE
@@ -474,17 +483,15 @@ const sendMessage = async (overrideContent?: string) => {
           {isAI ? "⚡" : (isMe ? ">" : "$")}
         </span>
         
-        {/* Render Logic */}
        {isAI ? (
   <div style={{ lineHeight: "1.6", color: "#C9D1D9" }}>
     <div style={{ 
-       whiteSpace: "pre-wrap", // Essential for wrapping
+       whiteSpace: "pre-wrap",
        wordBreak: "break-word",
        fontFamily: "'Fira Code', monospace", 
        fontSize: '13px',
        color: '#ADC6FF' 
     }}>
-      {/* Remove the redundant <pre> and just use a div with whiteSpace */}
       {displayContent.replace("### 🧠 LOGIC_EXPLAINED", "").trim()}
     </div>
   </div>
@@ -493,12 +500,9 @@ const sendMessage = async (overrideContent?: string) => {
 )}
       </div>
       
-
   
-      {/* --- ACTION BUTTONS --- */}
-{displayContent.includes("```") && (
+      {displayContent.includes("```") && (
   <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap" }}>
-    {/* AI REVIEW */}
     <button 
       onClick={() => requestAIReview(msgId, displayContent)}
       style={{
@@ -515,7 +519,6 @@ const sendMessage = async (overrideContent?: string) => {
       {isMe ? "DEBUG_MY_CODE" : "RUN_AI_REVIEW"}
     </button>
 
-    {/* AI EXPLAIN */}
     <button 
       onClick={() => requestAIDescription(msgId, displayContent)}
       style={{
@@ -532,7 +535,6 @@ const sendMessage = async (overrideContent?: string) => {
       EXPLAIN_LOGIC
     </button>
 
-    {/* MANUAL EDITOR */}
     {!isMe && (
       <button 
         onClick={() => {
@@ -589,14 +591,13 @@ const sendMessage = async (overrideContent?: string) => {
       </button>
     </div>
 
-    {/* EDITABLE CODE BLOCK */}
     <div style={{ marginBottom: "10px" }}>
       <div style={{ color: "#8B949E", fontSize: "10px", marginBottom: "4px" }}>// SOURCE_CODE</div>
       <textarea 
         style={{
           width: "100%",
           background: "#0D1117",
-          color: "#7EE787", // Greenish code color
+          color: "#7EE787",
           border: "1px solid #30363D",
           borderRadius: "4px",
           padding: "10px",
@@ -611,7 +612,6 @@ const sendMessage = async (overrideContent?: string) => {
       />
     </div>
 
-    {/* MENTOR COMMENTS */}
     <div>
       <div style={{ color: "#8B949E", fontSize: "10px", marginBottom: "4px" }}>// MENTOR_NOTES</div>
       <textarea 
@@ -635,7 +635,6 @@ const sendMessage = async (overrideContent?: string) => {
 
     <button 
       onClick={async () => {
-        // Automatically wrap edited code in backticks if the user forgot them
         const finalCode = reviewData.code.includes("```") 
           ? reviewData.code 
           : `\`\`\`\n${reviewData.code}\n\`\`\``;
@@ -703,7 +702,7 @@ const sendMessage = async (overrideContent?: string) => {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault(); 
-                sendMessage(); // Fixed: sendMessage is called without returning its promise result
+                sendMessage();
               }
             }} 
             placeholder="type_message_here..." 
@@ -724,7 +723,6 @@ const sendMessage = async (overrideContent?: string) => {
 
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
 
-            
             <button 
   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
   style={{ 
@@ -746,13 +744,11 @@ const sendMessage = async (overrideContent?: string) => {
   title="INSERT_GLYPH_PROTOCOL"
 >
   {showEmojiPicker ? (
-    // Close Icon
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18"></line>
       <line x1="6" y1="6" x2="18" y2="18"></line>
     </svg>
   ) : (
-    // Smile Icon
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10"></circle>
       <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
@@ -762,24 +758,26 @@ const sendMessage = async (overrideContent?: string) => {
   )}
 </button>
 
+            {/* ← UPDATED: mic button shows uploading state too */}
             <button 
   onMouseDown={startRecording} 
   onMouseUp={handleVoiceSend}
+  disabled={isUploadingVoice}
   className={isRecording ? "rec-pulse" : ""}
   style={{
-    background: isRecording ? "#ff333322" : "transparent",
-    border: isRecording ? "1px solid #ff3333" : "1px solid #30363D",
-    color: isRecording ? "#ff3333" : "#8B949E",
+    background: isRecording ? "#ff333322" : isUploadingVoice ? "#58A6FF22" : "transparent",
+    border: isRecording ? "1px solid #ff3333" : isUploadingVoice ? "1px solid #58A6FF" : "1px solid #30363D",
+    color: isRecording ? "#ff3333" : isUploadingVoice ? "#58A6FF" : "#8B949E",
     borderRadius: "4px",
     padding: "8px 10px",
-    cursor: "pointer",
+    cursor: isUploadingVoice ? "not-allowed" : "pointer",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     transition: "all 0.2s",
     outline: "none"
   }}
-  title={isRecording ? "RECORDING_STREAM..." : "START_VOICE_CAPTURE"}
+  title={isRecording ? "RECORDING_STREAM..." : isUploadingVoice ? "UPLOADING..." : "START_VOICE_CAPTURE"}
 >
   <svg 
     width="16" 
@@ -798,9 +796,10 @@ const sendMessage = async (overrideContent?: string) => {
   </svg>
   
   {isRecording && (
-    <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>
-      REC
-    </span>
+    <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>REC</span>
+  )}
+  {isUploadingVoice && (
+    <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>UP...</span>
   )}
 </button>
 

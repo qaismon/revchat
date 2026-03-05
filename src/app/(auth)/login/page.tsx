@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck, Camera } from "lucide-react";
+import { useUploadThing } from "@/utils/uploadthing"; // ← NEW
 
 async function generateAndStoreKeys(userId: string) {
   const keys = await window.crypto.subtle.generateKey(
@@ -39,12 +40,17 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [avatar, setAvatar] = useState("");
+  // ← UPDATED: avatar now stores a URL (or empty string), not base64
+  const [avatarUrl, setAvatarUrl] = useState("");
+  // ← For local preview only before upload completes
+  const [avatarPreview, setAvatarPreview] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+
+  // ← NEW: UploadThing hook
+  const { startUpload, isUploading } = useUploadThing("avatarUploader");
 
   useEffect(() => {
     fetch("/api/me")
@@ -65,21 +71,32 @@ export default function LoginPage() {
     if (savedPassword) setPassword(savedPassword);
   }, []);
 
-  
-
-  // Avatar Handler
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ← UPDATED: Show a local preview instantly, then upload to UploadThing in background
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) return setError("Avatar exceeds 2MB limit.");
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Avatar exceeds 2MB limit.");
+      return;
+    }
 
-    setIsUploading(true);
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      setAvatar(reader.result as string);
-      setIsUploading(false);
-    };
+    // Instant local preview (object URL, not base64 — much lighter)
+    const localPreview = URL.createObjectURL(file);
+    setAvatarPreview(localPreview);
+    setAvatarUrl(""); // clear until upload completes
+
+    try {
+      const uploaded = await startUpload([file]);
+      if (uploaded?.[0]?.url) {
+        setAvatarUrl(uploaded[0].url);
+      } else {
+        setError("Avatar upload failed. Please try again.");
+        setAvatarPreview("");
+      }
+    } catch (err) {
+      setError("Avatar upload error. Please try again.");
+      setAvatarPreview("");
+    }
   };
 
   const passwordStrength = useMemo(() => {
@@ -99,9 +116,18 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // ← Guard: don't submit while avatar is still uploading
+    if (isUploading) {
+      setError("Please wait — avatar is still uploading.");
+      return;
+    }
+
     const endpoint = isRegistering ? "/api/register" : "/api/login";
-    // Added avatar to payload
-    const payload = isRegistering ? { username, email, password, avatar } : { email, password };
+    // ← UPDATED: send avatarUrl (a CDN URL) instead of base64
+    const payload = isRegistering
+      ? { username, email, password, avatar: avatarUrl }
+      : { email, password };
 
     try {
       const res = await fetch(endpoint, {
@@ -156,16 +182,22 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Profile Pic Upload Section (Only on Register) */}
+        {/* Avatar Upload — register only */}
         {isRegistering && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
             <div style={avatarPreviewStyle}>
-              {avatar ? (
-                <img src={avatar} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {/* ← Show local preview or uploaded avatar */}
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <Camera color="#30363D" size={24} />
               )}
-              {isUploading && <div style={uploadingOverlayStyle}>WRITING...</div>}
+              {/* ← Show uploading overlay */}
+              {isUploading && <div style={uploadingOverlayStyle}>UPLOADING...</div>}
+              {/* ← Show a green tick when upload is done */}
+              {avatarUrl && !isUploading && (
+                <div style={{ position: "absolute", bottom: "4px", right: "4px", background: "#238636", borderRadius: "50%", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "white" }}>✓</div>
+              )}
             </div>
             <label style={{ fontSize: "10px", color: "#58A6FF", cursor: "pointer", textDecoration: "underline" }}>
               [ SET_PROFILE_PICTURE ]
@@ -219,17 +251,21 @@ export default function LoginPage() {
           </div>
         )}
 
-        <button type="submit" style={buttonStyle}>
-          {isRegistering ? "REGISTER" : "AUTHENTICATE"}
+        {/* ← Disabled while avatar is uploading */}
+        <button type="submit" style={{ ...buttonStyle, opacity: isUploading ? 0.5 : 1, cursor: isUploading ? "not-allowed" : "pointer" }} disabled={isUploading}>
+          {isUploading ? "UPLOADING_AVATAR..." : isRegistering ? "REGISTER" : "AUTHENTICATE"}
         </button>
 
         <p style={{ textAlign: "center", marginTop: "10px", fontSize: "13px", color: "#8B949E" }}>
           {isRegistering ? "Existing user?" : "New user detected?"}{" "}
-          <span onClick={() => {setIsRegistering(!isRegistering)
-                               setUsername("")
-                              setPassword("")
-                              setRememberMe(false)
-                              setEmail("")
+          <span onClick={() => {
+            setIsRegistering(!isRegistering);
+            setUsername("");
+            setPassword("");
+            setRememberMe(false);
+            setEmail("");
+            setAvatarUrl("");
+            setAvatarPreview("");
           }} style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}>
             {isRegistering ? "[Login]" : "[Register]"}
           </span>

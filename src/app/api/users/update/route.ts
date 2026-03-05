@@ -1,41 +1,46 @@
-// app/api/users/update/route.ts
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
+import mongoose from "mongoose";
 import User from "@/models/User";
-import bcrypt from "bcrypt";
+import { connectDB } from "@/lib/db";
+import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
     await connectDB();
     const { userId, type, value, currentPassword } = await req.json();
 
-    const user = await User.findById(userId);
-    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-    let updateData: any = {};
-
-    switch (type) {
-      case "avatar":
-        updateData.avatar = value;
-        break;
-      case "username":
-        updateData.username = value;
-        break;
-      case "password":
-        // Verify current password first
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
-        if (!isMatch) return NextResponse.json({ error: "Wrong current password" }, { status: 401 });
-        
-        const salt = await bcrypt.genSalt(10);
-        updateData.password = await bcrypt.hash(value, salt);
-        break;
-      default:
-        return NextResponse.json({ error: "Invalid update type" }, { status: 400 });
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return NextResponse.json({ error: "INVALID_USER_ID" }, { status: 400 });
     }
 
-    await User.findByIdAndUpdate(userId, updateData);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    // --- AVATAR UPDATE LOGIC ---
+    if (type === "avatar") {
+      await User.findByIdAndUpdate(userId, { avatar: value });
+      return NextResponse.json({ success: true });
+    }
+
+    // --- USERNAME UPDATE LOGIC ---
+    if (type === "username") {
+      await User.findByIdAndUpdate(userId, { username: value });
+      return NextResponse.json({ success: true });
+    }
+
+    // --- PASSWORD UPDATE LOGIC ---
+    if (type === "password") {
+      const user = await User.findById(userId);
+      if (!user) return NextResponse.json({ error: "USER_NOT_FOUND" }, { status: 404 });
+
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) return NextResponse.json({ error: "INVALID_PASSWORD" }, { status: 401 });
+
+      user.password = await bcrypt.hash(value, 10);
+      await user.save();
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "UNKNOWN_TYPE" }, { status: 400 });
+  } catch (error: any) {
+    console.error("UPDATE_API_ERROR:", error);
+    return NextResponse.json({ error: "SERVER_ERROR" }, { status: 500 });
   }
 }
