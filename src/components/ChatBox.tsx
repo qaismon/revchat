@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
-import { useUploadThing } from "@/utils/uploadthing"; // ← NEW
-
 
 
 // --- E2EE CRYPTO HELPERS ---
@@ -53,10 +51,9 @@ export default function ChatBox({ userId, peerId }: { userId: string, peerId: st
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [reviewData, setReviewData] = useState({ id: "", code: "", comments: "" });
+  const [isUploadingVoice, setIsUploadingVoice] = useState(false);
 
-  // ← NEW: UploadThing hook for voice messages
-  const { startUpload: uploadVoice, isUploading: isUploadingVoice } = useUploadThing("voiceUploader");
-
+ 
 const requestAIDescription = async (msgId: string, rawCode: string) => {
   try {
     const cleanCode = rawCode
@@ -129,23 +126,29 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
   }
 };
 
- // ← UPDATED: stopRecording now returns a Blob, we upload it to UploadThing
  const handleVoiceSend = async () => {
   const audioBlob = await stopRecording();
   if (!audioBlob) return;
 
+  setIsUploadingVoice(true);
   try {
     const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
-    const uploaded = await uploadVoice([file]);
+    const formData = new FormData();
+    formData.append("file", file);
 
-    if (uploaded?.[0]?.url) {
-      // URL is sent just like before — E2EE encrypts it transparently
-      await sendMessage(`AUDIO_PACKET:${uploaded[0].url}`);
-    } else {
-      console.error("Voice upload failed: no URL returned");
-    }
+    const res = await fetch("/api/upload-voice", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.url) throw new Error("Voice upload failed");
+
+    await sendMessage(`AUDIO_PACKET:${data.url}`);
   } catch (err) {
     console.error("Voice upload error:", err);
+  } finally {
+    setIsUploadingVoice(false);
   }
 };
 

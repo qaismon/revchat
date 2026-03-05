@@ -7,7 +7,7 @@ export function middleware(req: NextRequest) {
 
   const isApiRoute = path.startsWith("/api");
   const isAuthPage = path.startsWith("/login") || path.startsWith("/register");
-  const isPublicApi = path.startsWith("/api/login") || path.startsWith("/register");
+  const isPublicApi = path.startsWith("/api/login") || path.startsWith("/api/register") || path.startsWith("/api/upload-avatar") || path.startsWith("/api/upload-voice"); 
 
 
   if (isApiRoute) {

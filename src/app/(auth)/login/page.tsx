@@ -2,7 +2,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck, Camera } from "lucide-react";
-import { useUploadThing } from "@/utils/uploadthing"; // ← NEW
 
 async function generateAndStoreKeys(userId: string) {
   const keys = await window.crypto.subtle.generateKey(
@@ -40,25 +39,18 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // ← UPDATED: avatar now stores a URL (or empty string), not base64
-  const [avatarUrl, setAvatarUrl] = useState("");
-  // ← For local preview only before upload completes
-  const [avatarPreview, setAvatarPreview] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(""); // stores the UploadThing URL
+  const [avatarPreview, setAvatarPreview] = useState(""); // local preview only
   const [error, setError] = useState("");
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-
-  // ← NEW: UploadThing hook
-  const { startUpload, isUploading } = useUploadThing("avatarUploader");
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/me")
-      .then((res) => {
-        if (res.ok) {
-          router.push("/chat");
-        }
-      });
+    fetch("/api/me").then((res) => {
+      if (res.ok) router.push("/chat");
+    });
   }, [router]);
 
   useEffect(() => {
@@ -71,7 +63,7 @@ export default function LoginPage() {
     if (savedPassword) setPassword(savedPassword);
   }, []);
 
-  // ← UPDATED: Show a local preview instantly, then upload to UploadThing in background
+  // Same pattern as profile page — upload via our own server route using UTApi
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -80,22 +72,30 @@ export default function LoginPage() {
       return;
     }
 
-    // Instant local preview (object URL, not base64 — much lighter)
-    const localPreview = URL.createObjectURL(file);
-    setAvatarPreview(localPreview);
-    setAvatarUrl(""); // clear until upload completes
+    // Show instant local preview
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarUrl("");
+    setIsUploading(true);
 
     try {
-      const uploaded = await startUpload([file]);
-      if (uploaded?.[0]?.url) {
-        setAvatarUrl(uploaded[0].url);
-      } else {
-        setError("Avatar upload failed. Please try again.");
-        setAvatarPreview("");
-      }
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload-avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error("Upload failed");
+
+      setAvatarUrl(data.url);
     } catch (err) {
-      setError("Avatar upload error. Please try again.");
+      console.error("Avatar upload error:", err);
+      setError("Avatar upload failed. Please try again.");
       setAvatarPreview("");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -105,11 +105,10 @@ export default function LoginPage() {
     const hasLetters = /[a-zA-Z]/.test(password);
     const hasNumbers = /[0-9]/.test(password);
     const hasSpecial = /[!@#$%^&*]/.test(password);
-
-    if (hasLetters && hasNumbers && hasSpecial && password.length >= 8) {
+    if (hasLetters && hasNumbers && hasSpecial && password.length >= 8)
       return { label: "HIGH_ENTROPY", color: "#7EE787", width: "100%" };
-    }
-    if (hasLetters && hasNumbers) return { label: "MED_ENTROPY", color: "#ffad33", width: "66%" };
+    if (hasLetters && hasNumbers)
+      return { label: "MED_ENTROPY", color: "#ffad33", width: "66%" };
     return { label: "WEAK_HASH", color: "#ff4d4d", width: "33%" };
   }, [password]);
 
@@ -117,14 +116,13 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    // ← Guard: don't submit while avatar is still uploading
     if (isUploading) {
       setError("Please wait — avatar is still uploading.");
       return;
     }
 
     const endpoint = isRegistering ? "/api/register" : "/api/login";
-    // ← UPDATED: send avatarUrl (a CDN URL) instead of base64
+    // avatarUrl is now a CDN URL (or empty string if none chosen)
     const payload = isRegistering
       ? { username, email, password, avatar: avatarUrl }
       : { email, password };
@@ -139,18 +137,14 @@ export default function LoginPage() {
 
       if (res.ok) {
         localStorage.setItem("userId", data.userId);
-        if (rememberMe) {
-          localStorage.setItem("rememberedEmail", email);
-        }
+        if (rememberMe) localStorage.setItem("rememberedEmail", email);
 
         const existingKey = localStorage.getItem(`privKey_${data.userId}`);
-        if (!existingKey) {
-          if (window.isSecureContext) {
-            try {
-              await generateAndStoreKeys(data.userId);
-            } catch (keyErr) {
-              console.error("E2EE Sync Failed:", keyErr);
-            }
+        if (!existingKey && window.isSecureContext) {
+          try {
+            await generateAndStoreKeys(data.userId);
+          } catch (keyErr) {
+            console.error("E2EE Sync Failed:", keyErr);
           }
         }
         router.push("/chat");
@@ -168,11 +162,11 @@ export default function LoginPage() {
         input::placeholder { color: #484F58; }
         .input-focus:focus { border-color: #58A6FF !important; }
       `}</style>
-      
+
       <form onSubmit={handleSubmit} style={cardStyle}>
         <div style={{ textAlign: "center", marginBottom: "10px" }}>
           <div style={{ display: "inline-flex", padding: "12px", background: "#161B22", borderRadius: "50%", border: "1px solid #30363D", marginBottom: "15px" }}>
-             <ShieldCheck color="#7EE787" size={32} />
+            <ShieldCheck color="#7EE787" size={32} />
           </div>
           <h2 style={{ color: "#C9D1D9", fontSize: "1.2rem", margin: 0, letterSpacing: "1px" }}>
             {isRegistering ? "CREATE_IDENTITY" : "ESTABLISH_SESSION"}
@@ -182,26 +176,24 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Avatar Upload — register only */}
+        {/* Avatar upload — register only */}
         {isRegistering && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
             <div style={avatarPreviewStyle}>
-              {/* ← Show local preview or uploaded avatar */}
               {avatarPreview ? (
                 <img src={avatarPreview} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <Camera color="#30363D" size={24} />
               )}
-              {/* ← Show uploading overlay */}
               {isUploading && <div style={uploadingOverlayStyle}>UPLOADING...</div>}
-              {/* ← Show a green tick when upload is done */}
+              {/* Green tick when upload is done */}
               {avatarUrl && !isUploading && (
                 <div style={{ position: "absolute", bottom: "4px", right: "4px", background: "#238636", borderRadius: "50%", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "white" }}>✓</div>
               )}
             </div>
             <label style={{ fontSize: "10px", color: "#58A6FF", cursor: "pointer", textDecoration: "underline" }}>
               [ SET_PROFILE_PICTURE ]
-              <input type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: "none" }} />
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleAvatarChange} style={{ display: "none" }} />
             </label>
           </div>
         )}
@@ -228,13 +220,13 @@ export default function LoginPage() {
           <span style={promptStyle}>$</span>
           <input type={showPassword ? "text" : "password"} placeholder="password" className="input-focus" style={{ ...inputStyle, paddingRight: "45px" }} value={password} onChange={(e) => setPassword(e.target.value)} required />
           <button type="button" onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
-            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />} 
+            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
 
         {isRegistering && password && (
           <div style={{ marginTop: "-5px", marginBottom: "5px" }}>
-             <div style={{ height: "2px", width: "100%", background: "#30363D", borderRadius: "1px" }}>
+            <div style={{ height: "2px", width: "100%", background: "#30363D", borderRadius: "1px" }}>
               <div style={{ height: "100%", width: passwordStrength.width, background: passwordStrength.color, transition: "width 0.3s ease" }} />
             </div>
             <span style={{ fontSize: "9px", color: passwordStrength.color }}>&gt; STATUS: {passwordStrength.label}</span>
@@ -251,22 +243,24 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ← Disabled while avatar is uploading */}
         <button type="submit" style={{ ...buttonStyle, opacity: isUploading ? 0.5 : 1, cursor: isUploading ? "not-allowed" : "pointer" }} disabled={isUploading}>
           {isUploading ? "UPLOADING_AVATAR..." : isRegistering ? "REGISTER" : "AUTHENTICATE"}
         </button>
 
         <p style={{ textAlign: "center", marginTop: "10px", fontSize: "13px", color: "#8B949E" }}>
           {isRegistering ? "Existing user?" : "New user detected?"}{" "}
-          <span onClick={() => {
-            setIsRegistering(!isRegistering);
-            setUsername("");
-            setPassword("");
-            setRememberMe(false);
-            setEmail("");
-            setAvatarUrl("");
-            setAvatarPreview("");
-          }} style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}>
+          <span
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setUsername("");
+              setPassword("");
+              setRememberMe(false);
+              setEmail("");
+              setAvatarUrl("");
+              setAvatarPreview("");
+            }}
+            style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}
+          >
             {isRegistering ? "[Login]" : "[Register]"}
           </span>
         </p>
@@ -283,27 +277,5 @@ const promptStyle: React.CSSProperties = { color: "#7EE787", fontSize: "14px", f
 const inputStyle: React.CSSProperties = { flex: 1, padding: "12px", background: "transparent", border: "none", color: "#C9D1D9", outline: "none", fontSize: "14px" };
 const buttonStyle: React.CSSProperties = { padding: "12px", borderRadius: "4px", border: "1px solid #238636", background: "#23863622", color: "#7EE787", fontWeight: "bold", cursor: "pointer" };
 const eyeButtonStyle: React.CSSProperties = { position: "absolute", right: "10px", top: "10px", background: "none", border: "none", cursor: "pointer", color: "#484F58" };
-
-const avatarPreviewStyle: React.CSSProperties = {
-  width: "80px",
-  height: "80px",
-  borderRadius: "50%",
-  border: "2px dashed #30363D",
-  background: "#0D1117",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  overflow: "hidden",
-  position: "relative"
-};
-
-const uploadingOverlayStyle: React.CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  background: "rgba(0,0,0,0.8)",
-  color: "#7EE787",
-  fontSize: "8px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center"
-};
+const avatarPreviewStyle: React.CSSProperties = { width: "80px", height: "80px", borderRadius: "50%", border: "2px dashed #30363D", background: "#0D1117", display: "flex", justifyContent: "center", alignItems: "center", overflow: "hidden", position: "relative" };
+const uploadingOverlayStyle: React.CSSProperties = { position: "absolute", inset: 0, background: "rgba(0,0,0,0.8)", color: "#7EE787", fontSize: "8px", display: "flex", alignItems: "center", justifyContent: "center" };
