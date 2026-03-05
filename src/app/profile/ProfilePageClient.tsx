@@ -81,40 +81,41 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
     }
   };
 
- const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
 
-    try {
-      setLoading(true);
+  if (file.size > 2 * 1024 * 1024) {
+    setModalConfig({ title: "DATA_OVERFLOW", message: "FILE_SIZE_EXCEEDS_LIMIT: Avatar must be under 2MB.", variant: "danger", onConfirm: () => {} });
+    return;
+  }
 
-      const uploaded = await startUpload([file]);
-      const avatarUrl = uploaded?.[0]?.url;
+  try {
+    setLoading(true);
 
-      if (!avatarUrl) {
-        throw new Error("UPLOADTHING_URL_MISSING");
-      }
-      
-      // triggerUpdate calls your /api/users/update route
-      const success = await triggerUpdate("avatar", avatarUrl);
-      
-      if (success) {
-        setAvatar(avatarUrl);
-        router.refresh(); 
-      }
+    const formData = new FormData();
+    formData.append("file", file);
 
-    } catch (err) {
-      console.error("Detailed Upload Error:", err);
-      setModalConfig({
-        title: "UPLOAD_FAILURE",
-        message: "UPLINK_LOST: Avatar upload succeeded but URL sync failed.",
-        variant: "danger",
-        onConfirm: () => {}
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    const res = await fetch("/api/upload-avatar", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    console.log("Upload response:", data);
+
+    if (!res.ok || !data.url) throw new Error("Upload failed");
+
+    const success = await triggerUpdate("avatar", data.url);
+    if (success) setAvatar(data.url);
+
+  } catch (err) {
+    console.error("Upload error:", err);
+    setModalConfig({ title: "UPLOAD_FAILURE", message: "UPLINK_LOST: Avatar upload to CDN failed.", variant: "danger", onConfirm: () => {} });
+  } finally {
+    setLoading(false);
+  }
+};
   const handleNameUpdate = async () => {
     const success = await triggerUpdate("username", newUserName);
     if (success) setUserName(newUserName);
