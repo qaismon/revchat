@@ -11,8 +11,6 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
     const response = await utapi.uploadFiles(file);
-    
-    console.log("UTApi response:", JSON.stringify(response));
 
     const url = response?.data?.ufsUrl ?? response?.data?.url;
     if (!url) return NextResponse.json({ error: "Upload failed" }, { status: 500 });

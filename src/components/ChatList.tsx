@@ -22,37 +22,32 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
   const [activeTab, setActiveTab] = useState<"dms" | "groups">("dms");
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
-  message: string;
-  title: string;
-  variant: "danger" | "info" | "success";
-  onConfirm: () => void;
-} | null>(null);
+    message: string;
+    title: string;
+    variant: "danger" | "info" | "success";
+    onConfirm: () => void;
+  } | null>(null);
 
   const socketRef = useSocket(currentUserId);
   const router = useRouter();
-
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-const handleSoftRefresh = async () => {
-  setIsRefreshing(true);
-  try {
-    // Run both fetches in parallel
-    await Promise.all([
-      loadGroups(),
-      fetch(`/api/users?myId=${currentUserId}`)
-        .then((res) => res.json())
-        .then((data) => { if (Array.isArray(data)) setUsers(data); })
-    ]);
-    console.log("// SYSTEM_SYNC_COMPLETE");
-  } catch (err) {
-    console.error("Refresh failed:", err);
-  } finally {
-    // Small delay so the animation is visible
-    setTimeout(() => setIsRefreshing(false), 500);
-  }
-};
+  const handleSoftRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        loadGroups(),
+        fetch(`/api/users?myId=${currentUserId}`)
+          .then((res) => res.json())
+          .then((data) => { if (Array.isArray(data)) setUsers(data); })
+      ]);
+    } catch (err) {
+      console.error("Refresh failed:", err);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
-  // Load users (for DMs)
   useEffect(() => {
     if (!currentUserId) return;
     fetch(`/api/users?myId=${currentUserId}`)
@@ -61,7 +56,6 @@ const handleSoftRefresh = async () => {
       .catch(err => console.error("Fetch error:", err));
   }, [currentUserId]);
 
-  // Load groups
   const loadGroups = () => {
     if (!currentUserId) return;
     fetch("/api/groups")
@@ -72,16 +66,12 @@ const handleSoftRefresh = async () => {
 
   useEffect(() => { loadGroups(); }, [currentUserId]);
 
-  
-
-  // Join all group rooms on socket connection
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket || groups.length === 0) return;
     groups.forEach((g) => socket.emit("join-group", g._id));
   }, [socketRef.current, groups]);
 
-  // Socket events
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -93,34 +83,22 @@ const handleSoftRefresh = async () => {
       }
     };
 
-   const handleGroupUpdate = (data: any) => {
-  // Use String() on everything to prevent type mismatch (ObjectId vs String)
-  const incomingUserId = data?.userId ? String(data.userId) : null;
-  const incomingGroupId = data?.groupId ? String(data.groupId) : null;
-  
-  const isMe = incomingUserId === String(currentUserId);
-  const isSelectedGroup = incomingGroupId === String(selectedGroupId);
+    const handleGroupUpdate = (data: any) => {
+      const incomingUserId = data?.userId ? String(data.userId) : null;
+      const incomingGroupId = data?.groupId ? String(data.groupId) : null;
+      const isMe = incomingUserId === String(currentUserId);
+      const isSelectedGroup = incomingGroupId === String(selectedGroupId);
 
-  console.log("Group Update Received:", data.action, "Is it me?", isMe, "Is it selected?", isSelectedGroup);
-
-  if (data?.action === "exit" && isMe) {
-    // 1. Remove from local list
-    setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
-    
-    // 2. CLOSE THE CHATBOX
-    if (isSelectedGroup) {
-      console.log("Closing ChatBox for group:", incomingGroupId);
-      onSelectGroup(null); 
-    }
-  } 
-  else if (data?.action === "delete") {
-    setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
-    if (isSelectedGroup) onSelectGroup(null);
-  } 
-  else {
-    loadGroups();
-  }
-};
+      if (data?.action === "exit" && isMe) {
+        setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
+        if (isSelectedGroup) onSelectGroup(null);
+      } else if (data?.action === "delete") {
+        setGroups((prev) => prev.filter((g) => String(g._id) !== incomingGroupId));
+        if (isSelectedGroup) onSelectGroup(null);
+      } else {
+        loadGroups();
+      }
+    };
 
     const handleGroupMessage = (msg: any) => {
       const gId = String(msg.groupId);
@@ -143,18 +121,17 @@ const handleSoftRefresh = async () => {
   }, [socketRef.current, selectedUserId, selectedGroupId, currentUserId]);
 
   const handleLogout = () => {
-  setModalConfig({
-    title: "TERMINATE_SESSION",
-    message: "Confirm logout?",
-    variant: "danger",
-    onConfirm: async () => {
-await fetch("/api/auth/logout", { method: "POST" });
-      if (socketRef.current) socketRef.current.disconnect();
-      window.location.href = "/login";    }
-  });
-};
-
- 
+    setModalConfig({
+      title: "TERMINATE_SESSION",
+      message: "Confirm logout?",
+      variant: "danger",
+      onConfirm: async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        if (socketRef.current) socketRef.current.disconnect();
+        window.location.href = "/login";
+      }
+    });
+  };
 
   const displayedUsers = users
     .filter((u) => u.username?.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -170,328 +147,250 @@ await fetch("/api/auth/logout", { method: "POST" });
     g.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const windowStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    background: "#090b0f",
-    borderRight: "2px solid #30363D",
-    fontFamily: "'Fira Code', 'Courier New', monospace",
-    color: "#C9D1D9",
-    overflow: "hidden"
-  };
+  const totalUnreadDMs = Object.entries(unreadCounts)
+    .reduce((acc, [id, count]) => id !== currentUserId ? acc + count : acc, 0);
+  const totalUnreadGroups = Object.values(unreadGroupCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div style={windowStyle}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#07090d", borderRight: "1px solid #1a1f2e", fontFamily: "'Fira Code', 'Courier New', monospace", color: "#C9D1D9", overflow: "hidden" }}>
       <style>{`
-        .sidebar-scroll::-webkit-scrollbar { width: 6px; }
-        .sidebar-scroll::-webkit-scrollbar-track { background: #0D1117; }
-        .sidebar-scroll::-webkit-scrollbar-thumb { background: #30363D; border-radius: 4px; }
-        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #484F58; }
-        .util-btn:hover { color: #58A6FF !important; }
-        .logout-btn:hover { color: #F85149 !important; }
-        .tab-btn { transition: all 0.2s; }
-        .tab-btn:hover { opacity: 1 !important; }
-        @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+        .cl-scroll::-webkit-scrollbar { width: 3px; }
+        .cl-scroll::-webkit-scrollbar-track { background: transparent; }
+        .cl-scroll::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 10px; }
+        
+        .cl-item { transition: all 0.2s ease; }
+        .cl-item:hover { transform: translateX(3px); }
 
-.refresh-btn.spinning svg {
-  animation: spin 0.8s linear infinite;
-  color: #58A6FF; /* Turns blue while loading */
-}
+        .cl-tab { transition: all 0.2s ease; position: relative; }
 
-.refresh-btn:hover:not(.spinning) { 
-  color: #fff !important; 
-  transform: scale(1.1);
-  filter: drop-shadow(0 0 5px #7EE787);
+        .cl-util-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 7px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          color: #484F58;
+        }
+        .cl-util-btn:hover { background: #161B22; color: #C9D1D9 !important; }
+        .cl-util-btn.danger:hover { background: #2d1a1a; color: #F85149 !important; }
+        .cl-util-btn.profile:hover { background: #0d1f2d; color: #58A6FF !important; }
+        .cl-util-btn.newgroup:hover { background: #1a1129; color: #a78bfa !important; }
 
-  .sidebar-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: #30363D transparent;
-}
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .spinning { animation: spin 0.7s linear infinite; }
 
-.sidebar-scroll::-webkit-scrollbar {
-  width: 5px;
-}
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .pulse-online { animation: pulse-dot 2s ease-in-out infinite; }
 
-.sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #30363D;
-  border-radius: 10px;
-}
+        .search-input::placeholder { color: #2d3440; }
+        .search-input:focus { border-color: #2a3550 !important; }
+      `}</style>
 
-/* Add a subtle fade-in for the whole list */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.sidebar-scroll > div {
-  animation: fadeInUp 0.4s ease forwards;
-}
-}`}</style>
-
-<div style={{ background: "#161B22", padding: "16px", borderBottom: "1px solid #30363D", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-    <div style={{ display: "flex", alignItems: "center" }}>
-    
-    <span style={{ fontSize: "10px", fontWeight: "bold", color: "#9ea2a7", letterSpacing: "1px", textTransform: "uppercase" }}>
-      RevChat.v1
-    </span>
-  </div>
-
-  {/* Right Side: Status Indicator */}
-  <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#7EE787", boxShadow: "0 0 5px #7EE787" }}></div>
-</div>
-
-      {/* Tab Switcher */}
-      <div style={{ display: "flex", background: "#0D1117", borderBottom: "1px solid #30363D" }}>
-        <button
-          className="tab-btn"
-          onClick={() => setActiveTab("dms")}
-          style={{ flex: 1, padding: "9px", background: "transparent", border: "none", borderBottom: activeTab === "dms" ? "2px solid #58A6FF" : "2px solid transparent", color: activeTab === "dms" ? "#58A6FF" : "#8B949E", cursor: "pointer", fontSize: "11px", fontFamily: "inherit", fontWeight: activeTab === "dms" ? "bold" : "normal" }}
-        >
-          DMs {(() => {
-  const totalUnread = Object.entries(unreadCounts)
-    .reduce((acc, [id, count]) => {
-      // Logic check: Only sum if the ID isn't the current user
-      return id !== currentUserId ? acc + count : acc;
-    }, 0);
-
-  return totalUnread > 0 ? (
-    <span style={{ background: "#238636", color: "white", padding: "0 4px", borderRadius: "8px", fontSize: "9px", marginLeft: "4px" }}>
-      {totalUnread}
-    </span>
-  ) : null;
-})()}
-        </button>
-        <button
-          className="tab-btn"
-          onClick={() => setActiveTab("groups")}
-          style={{ flex: 1, padding: "9px", background: "transparent", border: "none", borderBottom: activeTab === "groups" ? "2px solid #a78bfa" : "2px solid transparent", color: activeTab === "groups" ? "#a78bfa" : "#8B949E", cursor: "pointer", fontSize: "11px", fontFamily: "inherit", fontWeight: activeTab === "groups" ? "bold" : "normal" }}
-        >
-          Groups {Object.values(unreadGroupCounts).reduce((a, b) => a + b, 0) > 0 && (
-            <span style={{ background: "#6e40c9", color: "white", padding: "0 4px", borderRadius: "8px", fontSize: "9px", marginLeft: "4px" }}>
-              {Object.values(unreadGroupCounts).reduce((a, b) => a + b, 0)}
-            </span>
-          )}
-        </button>
+      {/* ── Header: current user identity ── */}
+      <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #111520", background: "#07090d", display: "flex", alignItems: "center", gap: "10px"}}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <div onClick={() => router.push("/profile")} style={{ width: "34px", height: "34px", borderRadius: "100px", border: "1px solid #1a2035", background: "#0d1117", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", cursor:"pointer"}}>
+            {currentUserAvatar
+              ? <img src={currentUserAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <span style={{ color: "#58A6FF", fontWeight: "bold", fontSize: "13px" }}>{currentUserName?.[0]?.toUpperCase()}</span>
+            }
+          </div>
+          {/* Online self-indicator */}
+          <div className="pulse-online" style={{ position: "absolute", bottom: "-1px", right: "-2px", width: "12px", height: "12px", borderRadius: "50%", background: "#7EE787", border: "2px solid #07090d" }} />
+        </div>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <div onClick={() => router.push("/profile")} style={{ fontSize: "12px", color: "#a0a3a5", fontWeight: "600", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor:"pointer" }}>
+            {currentUserName?.toUpperCase()}
+          </div>
+          
+        </div>
+        {/* Version badge */}
+        <div style={{ fontSize: "10px", color: "#2d3440", letterSpacing: "0.5px", border: "1px solid #1a1f2e", padding: "2px 5px", borderRadius: "4px" }}>RevChat v1.1</div>
       </div>
 
-      {/* Search */}
-      <div style={{ padding: "12px", background: "#0D1117", borderBottom: "1px solid #21262d" }}>
+      {/* ── Tab Switcher ── */}
+      <div style={{ display: "flex", background: "#07090d", borderBottom: "1px solid #111520", padding: "0 8px" }}>
+        {(["dms", "groups"] as const).map((tab) => {
+          const isActive = activeTab === tab;
+          const accent = tab === "dms" ? "#58A6FF" : "#a78bfa";
+          const unread = tab === "dms" ? totalUnreadDMs : totalUnreadGroups;
+          return (
+            <button key={tab} className="cl-tab" onClick={() => setActiveTab(tab)}
+              style={{ flex: 1, padding: "10px 4px 9px", background: "transparent", border: "none", borderBottom: isActive ? `2px solid ${accent}` : "2px solid transparent", color: isActive ? accent : "#3d4452", cursor: "pointer", fontSize: "10px", fontFamily: "inherit", fontWeight: isActive ? "700" : "400", letterSpacing: "1.5px", textTransform: "uppercase", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+              {tab === "dms" ? "Direct" : "Groups"}
+              {unread > 0 && (
+                <span style={{ background: tab === "dms" ? "#1a3a6e" : "#2d1a5e", color: accent, padding: "1px 5px", borderRadius: "4px", fontSize: "9px", fontWeight: "bold" }}>
+                  {unread}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Search ── */}
+      <div style={{ padding: "10px 10px 8px", background: "#07090d" }}>
         <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <span style={{ position: "absolute", left: "10px", color: activeTab === "dms" ? "#58A6FF" : "#a78bfa", fontSize: "12px" }}>❯</span>
+          <svg style={{ position: "absolute", left: "10px", color: "#2d3440", flexShrink: 0 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
-            placeholder={activeTab === "dms" ? "FILTER_ID..." : "FILTER_GROUP..."}
+            className="search-input"
+            placeholder={activeTab === "dms" ? "search users..." : "search groups..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            style={{ width: "100%", padding: "8px 8px 8px 25px", border: `1px solid ${activeTab === "dms" ? "#30363D" : "#6e40c944"}`, borderRadius: "4px", background: "#161B22", color: "#C9D1D9", outline: "none", fontSize: "12px", fontFamily: "inherit" }}
+            style={{ width: "100%", padding: "8px 8px 8px 28px", border: "1px solid #111520", borderRadius: "6px", background: "#0d1117", color: "#8B949E", outline: "none", fontSize: "11px", fontFamily: "inherit", boxSizing: "border-box", transition: "border-color 0.2s" }}
           />
         </div>
       </div>
 
-      {/* List */}
-      <div className="sidebar-scroll" style={{ 
-  flex: 1, 
-  overflowY: "auto", 
-  padding: "10px", // Breathing room
-  display: "flex",
-  flexDirection: "column",
-  gap: "4px" // Separation between "cards"
-}}>
+      {/* ── List ── */}
+      <div className="cl-scroll" style={{ flex: 1, overflowY: "auto", padding: "4px 8px 8px", display: "flex", flexDirection: "column", gap: "2px" }}>
 
-  {/* DMs Tab */}
-  {activeTab === "dms" && displayedUsers.map((user) => {
-    const userIdStr = String(user._id);
-    const isSelected = String(selectedUserId) === userIdStr;
-    const isOnline = onlineUsers.includes(userIdStr);
-    const unreadCount = unreadCounts[userIdStr] || 0;
+        {/* DMs */}
+        {activeTab === "dms" && displayedUsers.map((user) => {
+          const userIdStr = String(user._id);
+          const isSelected = String(selectedUserId) === userIdStr;
+          const isOnline = onlineUsers.includes(userIdStr);
+          const unreadCount = unreadCounts[userIdStr] || 0;
 
-    return (
-      <div
-        key={userIdStr}
-        onClick={() => {
-          setUnreadCounts(prev => ({ ...prev, [userIdStr]: 0 }));
-          onSelect(userIdStr);
-        }}
-        style={{ 
-          padding: "14px 14px", 
-          borderRadius: "8px",
-          background: isSelected ? "rgba(88, 166, 255, 0.1)" : "transparent", 
-          cursor: "pointer", 
-          display: "flex", 
-          gap: "14px", 
-          alignItems: "center", 
-          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-          border: isSelected ? "1px solid rgba(88, 166, 255, 0.4)" : "1px solid transparent",
-          position: "relative",
-          overflow: "hidden"
-        }}
-        onMouseEnter={(e) => { 
-          if (!isSelected) {
-            e.currentTarget.style.backgroundColor = "#161B22";
-            e.currentTarget.style.transform = "translateX(6px)";
-          }
-        }}
-        onMouseLeave={(e) => { 
-          if (!isSelected) {
-            e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.transform = "translateX(0px)";
-          }
-        }}
-      >
+          return (
+            <div key={userIdStr} className="cl-item"
+              onClick={() => { setUnreadCounts(prev => ({ ...prev, [userIdStr]: 0 })); onSelect(userIdStr); }}
+              style={{ padding: "9px 10px", borderRadius: "7px", background: isSelected ? "#0d1829" : "transparent", cursor: "pointer", display: "flex", gap: "10px", alignItems: "center", border: isSelected ? "1px solid #1a3a6e" : "1px solid transparent", borderLeft: isSelected ? "2px solid #58A6FF" : "2px solid transparent" }}
+              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#0a0d14"; }}
+              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+            >
+              {/* Avatar */}
+              <div style={{ position: "relative", flexShrink: 0 }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "9px", border: `1px solid ${isSelected ? "#1a3a6e" : "#1a1f2e"}`, background: "#0d1117", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {user.avatar
+                    ? <img src={user.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    : <span style={{ color: isSelected ? "#58A6FF" : "#3d4452", fontWeight: "bold", fontSize: "13px" }}>{user.username?.[0]?.toUpperCase()}</span>
+                  }
+                </div>
+                <div style={{ position: "absolute", bottom: "-2px", right: "-2px", width: "11px", height: "11px", borderRadius: "50%", background: isOnline ? "#7EE787" : "#1e2535", border: "2px solid #07090d", boxShadow: isOnline ? "0 0 6px rgba(126,231,135,0.5)" : "none" }} />
+              </div>
 
-        {/* Avatar with Integrated Status Dot */}
-        <div style={{ position: "relative", flexShrink: 0 }}>
-          <div style={{ 
-            width: "38px", height: "38px", borderRadius: "10px", 
-            border: isSelected ? "2px solid #58A6FF" : "1px solid #30363D", 
-            background: "#0D1117", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center"
-          }}>
-            {user.avatar ? (
-              <img src={user.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <span style={{ color: isSelected ? "#58A6FF" : "#8B949E", fontWeight: "bold" }}>{user.username?.[0].toUpperCase()}</span>
-            )}
+              {/* Info */}
+              <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                <div style={{ fontSize: "13px", color: isSelected ? "#8fb8f0" : "#cdd3db", fontWeight: unreadCount > 0 ? "600" : "400", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {user.username?.toLowerCase()}
+                </div>
+                {/* Last message preview */}
+                {user.lastMessage && (
+                  <div style={{ fontSize: "10px", color: "#2d3440", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: "1px" }}>
+                    {user.lastMessage.substring(0, 30)}...
+                  </div>
+                )}
+              </div>
+
+              {/* Unread badge */}
+              {unreadCount > 0 && (
+                <div style={{ background: "#1a3a6e", color: "#58A6FF", minWidth: "18px", height: "18px", padding: "0 5px", fontSize: "10px", fontWeight: "bold", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {unreadCount}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Groups */}
+        {activeTab === "groups" && (
+          <>
+            {displayedGroups.map((group) => {
+              const isSelected = String(selectedGroupId) === String(group._id);
+              const unreadCount = unreadGroupCounts[group._id] || 0;
+
+              return (
+                <div key={group._id} className="cl-item"
+                  onClick={() => onSelectGroup(group)}
+                  style={{ padding: "9px 10px", borderRadius: "7px", background: isSelected ? "#110d1f" : "transparent", cursor: "pointer", display: "flex", gap: "10px", alignItems: "center", border: isSelected ? "1px solid #2d1a5e" : "1px solid transparent", borderLeft: isSelected ? "2px solid #a78bfa" : "2px solid transparent" }}
+                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#0a0a10"; }}
+                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
+                >
+                  {/* Group icon */}
+                  <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: isSelected ? "#1a1030" : "#0d0d18", border: `1px solid ${isSelected ? "#2d1a5e" : "#1a1f2e"}`, display: "flex", justifyContent: "center", alignItems: "center", fontSize: "15px", flexShrink: 0 }}>
+                    👥
+                  </div>
+
+                  <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", color: isSelected ? "#c4aaff" : "#9aa3b0", fontWeight: unreadCount > 0 ? "600" : "400", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {group.name?.toLowerCase()}
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#2d3440", marginTop: "1px" }}>
+                      {group.members?.length} members
+                    </div>
+                  </div>
+
+                  {unreadCount > 0 && (
+                    <div style={{ background: "#2d1a5e", color: "#a78bfa", minWidth: "18px", height: "18px", padding: "0 5px", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: "bold", flexShrink: 0 }}>
+                      {unreadCount}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* New group button inside list */}
+            <button onClick={() => setShowCreateGroup(true)}
+              style={{ marginTop: "6px", width: "100%", padding: "9px", background: "transparent", border: "1px dashed #1a1f2e", borderRadius: "7px", color: "#2d3440", cursor: "pointer", fontFamily: "inherit", fontSize: "11px", letterSpacing: "1px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", transition: "all 0.2s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#a78bfa"; e.currentTarget.style.color = "#a78bfa"; e.currentTarget.style.background = "#0a0a10"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#1a1f2e"; e.currentTarget.style.color = "#2d3440"; e.currentTarget.style.background = "transparent"; }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              NEW_GROUP
+            </button>
+          </>
+        )}
+
+        {/* Empty states */}
+        {activeTab === "dms" && displayedUsers.length === 0 && (
+          <div style={{ textAlign: "center", color: "#1e2535", fontSize: "11px", marginTop: "40px", letterSpacing: "0.5px" }}>
+            <div style={{ fontSize: "24px", marginBottom: "8px", opacity: 0.3 }}>◎</div>
+            no users found
           </div>
-          <div style={{ 
-            position: "absolute", bottom: "-2px", right: "-2px", 
-            width: "12px", height: "12px", borderRadius: "50%", 
-            background: isOnline ? "#7EE787" : "#484F58", 
-            border: "2px solid #0d1117",
-            boxShadow: isOnline ? "0 0 8px rgba(126, 231, 135, 0.4)" : "none"
-          }} />
-        </div>
-
-        <div style={{ flex: 1, overflow: "hidden" }}>
-          <div style={{ 
-            fontWeight: unreadCount > 0 || isSelected ? "600" : "400", 
-            fontSize: "14px", color: isSelected ? "#8f8e8e" : "#C9D1D9", 
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            display: "flex", alignItems: "center", gap: "6px"
-          }}>
-            {user.username?.toLowerCase()}
-            {unreadCount > 0 && <span style={{ color: "#7EE787", fontSize: "6px", fontWeight: "bold" }}>●</span>}
-          </div>
-          <div style={{ fontSize: "9px", color: isOnline ? "#7EE787" : "#484F58", letterSpacing: "0.5px" }}>
-            {isOnline ? "ONLINE" : "OFFLINE"}
-          </div>
-        </div>
-
-        {unreadCount > 0 && (
-          <div style={{ 
-            background: "#238636", color: "white", minWidth: "20px", height: "20px", 
-            padding: "0 6px", fontSize: "11px", fontWeight: "bold", 
-            borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center"
-          }}>
-            {unreadCount}
+        )}
+        {activeTab === "groups" && displayedGroups.length === 0 && (
+          <div style={{ textAlign: "center", color: "#1e2535", fontSize: "11px", marginTop: "40px", letterSpacing: "0.5px" }}>
+            <div style={{ fontSize: "24px", marginBottom: "8px", opacity: 0.3 }}>◎</div>
+            no groups yet
           </div>
         )}
       </div>
-    );
-  })}
 
-  {/* Groups Tab (Purple Theme) */}
-  {activeTab === "groups" && displayedGroups.map((group) => {
-    const isSelected = String(selectedGroupId) === String(group._id);
-    const unreadCount = unreadGroupCounts[group._id] || 0;
-    
-    return (
-      <div
-        key={group._id}
-        onClick={() => onSelectGroup(group)}
-        style={{ 
-          padding: "10px 14px", borderRadius: "8px",
-          background: isSelected ? "rgba(167, 139, 250, 0.1)" : "transparent", 
-          cursor: "pointer", display: "flex", gap: "14px", alignItems: "center",
-          transition: "all 0.25s ease",
-          border: isSelected ? "1px solid rgba(167, 139, 250, 0.4)" : "1px solid transparent"
-        }}
-        onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "#161B22"; }}
-        onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = "transparent"; }}
-      >
-        <div style={{ 
-          width: "38px", height: "38px", borderRadius: "50%", 
-          background: isSelected ? "#a78bfa" : "#30363D", 
-          display: "flex", justifyContent: "center", alignItems: "center", fontSize: "16px"
-        }}>
-          <span style={{ filter: isSelected ? "brightness(0) invert(1)" : "none" }}>👥</span>
-        </div>
-        
-        <div style={{ flex: 1, overflow: "hidden" }}>
-          <div style={{ fontWeight: isSelected ? "600" : "400", fontSize: "14px", color: isSelected ? "#fff" : "#C9D1D9" }}>
-            {group.name?.toLowerCase()}
-          </div>
-          <div style={{ fontSize: "10px", color: "#8B949E" }}>
-            {group.members?.length} members
-          </div>
-        </div>
-        
-        {unreadCount > 0 && (
-          <div style={{ background: "#a78bfa", color: "#000", minWidth: "20px", height: "20px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: "bold" }}>
-            {unreadCount}
-          </div>
+      {/* ── Utility Bar ── */}
+      <div style={{ padding: "8px 10px", borderTop: "1px solid #111520", background: "#07090d", display: "flex", alignItems: "center", gap: "4px" }}>
+
+        {/* Profile */}
+        <button className="cl-util-btn profile" onClick={() => router.push("/profile")} title="Profile">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </button>
+
+        {/* Refresh — DMs only */}
+        {activeTab === "dms" && (
+          <button className="cl-util-btn" onClick={handleSoftRefresh} disabled={isRefreshing} title="Refresh">
+            <svg className={isRefreshing ? "spinning" : ""} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
         )}
-      </div>
-    );
-  })}
-</div>
-      {/* Utility Bar */}
-<div style={{ padding: "10px 10px", borderTop: "1px solid #30363D", background: "#161B22", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-    
 
-  <button onClick={() => router.push("/profile")} className="util-btn" style={{ background: "none", border: "none", color: "#58A6FF", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-    [ PROFILE ]
-  </button>
+        <div style={{ flex: 1 }} />
 
-{/* Refresh Icon Button */}
-
-
-  {activeTab === "groups" && (
-    <button
-      onClick={() => setShowCreateGroup(true)}
-      style={{ background: "none", border: "none", color: "#a78bfa", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-    >
-      [ + NEW_GROUP ]
-    </button>
-  )}
-
-  <button onClick={handleLogout} className="logout-btn" 
-  style={{ background: "none", border: "none", color: "#b91717", fontSize: "11px", fontWeight: "bold", cursor: "pointer", padding: 0, fontFamily: "inherit"}}>
-    [ LOG OUT ]
-  </button>
-  {activeTab!=="groups"&& (<button 
-  onClick={handleSoftRefresh} 
-  className={`refresh-btn ${isRefreshing ? "spinning" : ""}`}
-  disabled={isRefreshing}
-  style={{ 
-    background: "none", 
-    border: "none", 
-    color: isRefreshing ? "#fff" : "#7EE787", 
-    cursor: isRefreshing ? "default" : "pointer", 
-    padding: "4px", 
-    display: "flex", 
-    alignItems: "center", 
-    justifyContent: "center",
-    transition: "all 0.2s ease"
-  }}
->
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23 4v6h-6"></path>
-    <path d="M1 20v-6h6"></path>
-    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-  </svg>
-</button>)}
-</div>
-
-      {/* Footer */}
-      <div style={{ padding: "8px 16px", background: "#0D1117", borderTop: "1px solid #30363D", fontSize: "10px", color: "#484F58", display: "flex", justifyContent: "space-between" }}>
-        <span>SYSTEM_STATUS: <span style={{ color: "#7EE787" }}>ACTIVE</span></span>
-        <span style={{ opacity: 0.5 }}>v1.1.0</span>
+        {/* Logout */}
+        <button className="cl-util-btn danger" onClick={handleLogout} title="Logout">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
       </div>
 
-      {/* Create Group Modal */}
+      {/* Modals */}
       {showCreateGroup && (
         <CreateGroupModal
           currentUserId={currentUserId}
@@ -505,18 +404,13 @@ await fetch("/api/auth/logout", { method: "POST" });
       )}
 
       <ConfirmModal
-  isOpen={!!modalConfig}
-  title={modalConfig?.title}
-  message={modalConfig?.message || ""}
-  variant={modalConfig?.variant}
-  onConfirm={() => {
-    modalConfig?.onConfirm();
-    setModalConfig(null);
-  }}
-  onCancel={() => setModalConfig(null)}
-/>
+        isOpen={!!modalConfig}
+        title={modalConfig?.title}
+        message={modalConfig?.message || ""}
+        variant={modalConfig?.variant}
+        onConfirm={() => { modalConfig?.onConfirm(); setModalConfig(null); }}
+        onCancel={() => setModalConfig(null)}
+      />
     </div>
-
-    
   );
 }
