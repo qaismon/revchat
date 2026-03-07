@@ -29,6 +29,28 @@ async function importPrivateKey(pem: string) {
   );
 }
 
+function TickIcon({ status }: { status: "sending" | "sent" | "delivered" | "seen" }) {
+  if (status === "sending") return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#484F58" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" strokeDasharray="3 3"/></svg>
+  );
+  if (status === "sent") return (
+    <svg width="14" height="10" viewBox="0 0 16 10" fill="none"><polyline points="1,5 5,9 14,1" stroke="#484F58" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  );
+  if (status === "delivered") return (
+    <svg width="18" height="10" viewBox="0 0 20 10" fill="none"><polyline points="1,5 5,9 14,1" stroke="#484F58" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="6,5 10,9 19,1" stroke="#484F58" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  );
+  return (
+    <svg width="18" height="10" viewBox="0 0 20 10" fill="none"><polyline points="1,5 5,9 14,1" stroke="#58A6FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="6,5 10,9 19,1" stroke="#58A6FF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  );
+}
+
+function getMessageStatus(m: any): "sending" | "sent" | "delivered" | "seen" {
+  if (m.seen) return "seen";
+  if (m.delivered) return "delivered";
+  if (m._id?.startsWith("msg-")) return "sending";
+  return "sent";
+}
+
 export default function ChatBox({ userId, peerId }: { userId: string, peerId: string }) {
   const socketRef = useSocket(userId);
   const router = useRouter();
@@ -271,19 +293,35 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
       }
     };
 
-    const handleSeen = ({ seenBy }: { seenBy: string }) => {
-      if (seenBy === peerId) setMessages((prev) => prev.map(m => m.senderId === userId ? { ...m, seen: true } : m));
-    };
+  const handleSeen = ({ seenBy }: { seenBy: string }) => {
+  if (seenBy === peerId) setMessages(prev => 
+    prev.map(m => m.senderId === userId ? { ...m, seen: true, delivered: true } : m)
+  );
+};
 
     const handleTyping = ({ from, isTyping }: { from: string, isTyping: boolean }) => {
       if (from === peerId) setIsPeerTyping(isTyping);
     };
 
+    const handleDelivered = ({ to, from }: { to: string; from: string }) => {
+  if (from === userId && to === peerId) {
+    setMessages(prev => prev.map(m =>
+      m.senderId === userId && !m.seen ? { ...m, delivered: true } : m
+    ));
+  }
+};
+
+
+
     socket.on("receive-message", handleMessage);
     socket.on("messages-seen", handleSeen);
     socket.on("display-typing", handleTyping);
+    socket.on("message-delivered", handleDelivered);
+
 
     return () => {
+      socket.off("message-delivered", handleDelivered);
+
       socket.off("receive-message", handleMessage);
       socket.off("messages-seen", handleSeen);
       socket.off("display-typing", handleTyping);
@@ -348,13 +386,15 @@ const sendMessage = async (overrideContent?: string) => {
 
     const tempId = `msg-${Date.now()}`;
     const tempMsg = { 
-      _id: tempId, 
-      senderId: userId, 
-      receiverId: peerId, 
-      content: packagePeer, 
-      contentSender: packageMe, 
-      createdAt: new Date().toISOString() 
-    };
+  _id: tempId, 
+  senderId: userId, 
+  receiverId: peerId, 
+  content: packagePeer, 
+  contentSender: packageMe, 
+  createdAt: new Date().toISOString(),
+  delivered: false,  // ADD
+  seen: false,       // ADD
+};
     
     setMessages((prev) => [...prev, tempMsg]);
     setDecryptedMessages(prev => ({ ...prev, [tempId]: rawText }));
@@ -373,6 +413,17 @@ const sendMessage = async (overrideContent?: string) => {
     });
 
     if (!dbRes.ok) throw new Error("Database failed to save");
+    const saved = await dbRes.json();
+if (saved?._id) {
+  setMessages(prev => prev.map(m =>
+  m._id === tempId ? { ...m, _id: saved._id } : m
+));
+  setDecryptedMessages(prev => {
+  const next: Record<string, string> = { ...prev, [saved._id]: rawText };
+  delete next[tempId];
+  return next;
+});
+}
 
   } catch (err) {
     console.error("Hybrid Transmission failed", err);
@@ -562,10 +613,12 @@ const sendMessage = async (overrideContent?: string) => {
   </div>
 )}
 
-      <div style={{ fontSize: "10px", marginTop: "6px", opacity: 0.5, textAlign: "right" }}>
-        {new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 
-        {isMe && (m.seen ? " [READ]" : " [SENT]")}
-      </div>
+      <div style={{ fontSize: "10px", marginTop: "6px", opacity: 0.6, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "5px" }}>
+  <span style={{ color: "#484F58" }}>
+    {new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+  </span>
+  {isMe && !isAI && <TickIcon status={getMessageStatus(m)} />}
+</div>
     </div>
   );
 })}

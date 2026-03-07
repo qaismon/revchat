@@ -12,7 +12,6 @@ const MessageSchema = new Schema(
       ref: "User",
       required: true,
     },
-
     content: {
       type: String,
       required: true,
@@ -20,6 +19,10 @@ const MessageSchema = new Schema(
     contentSender: {
       type: String,
       required: true,
+    },
+    delivered: {
+      type: Boolean,
+      default: false,
     },
     seen: {
       type: Boolean,

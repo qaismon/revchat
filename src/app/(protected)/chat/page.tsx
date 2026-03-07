@@ -197,7 +197,7 @@ export default function ChatPage() {
               </div>
 
               <div style={{ fontSize: "11px", color: "#2d3f5a", letterSpacing: "2px", marginBottom: "10px", textTransform: "uppercase" }}>welcome back</div>
-              <div style={{ fontSize: "22px", color: "#58A6FF", fontWeight: "600", letterSpacing: "-0.5px", marginBottom: "6px" }}>
+              <div style={{ fontSize: "15px", color: "#58A6FF", fontWeight: "600", letterSpacing: "-0.5px", marginBottom: "6px" }}>
                 {currentUser.username?.toLowerCase()}
                 <span className="cursor-blink" style={{ color: "#58A6FF", marginLeft: "3px" }}>█</span>
               </div>
@@ -206,8 +206,6 @@ export default function ChatPage() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "7px", alignItems: "flex-start" }}>
                 {[
-                  { label: "STATUS", value: "IDLE", color: "#e3b341" },
-                  { label: "ENCRYPTION", value: "RSA-OAEP + AES-GCM", color: "#7EE787" },
                   { label: "SESSION", value: "ACTIVE", color: "#7EE787" },
                   { label: "SYS_TIME", value: time, color: "#58A6FF" },
                 ].map(({ label, value, color }) => (

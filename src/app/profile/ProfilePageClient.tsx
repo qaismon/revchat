@@ -101,7 +101,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
   };
 
   const handleDeleteAccount = () => {
-    // Final confirmation modal before executing
     setModalConfig({
       title: "FINAL_WARNING",
       message: "This will permanently erase your account, all messages, and your avatar from CDN. This cannot be undone. Proceed?",
@@ -115,7 +114,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
             body: JSON.stringify({ userId }),
           });
           if (res.ok) {
-            // Wipe local storage keys belonging to this user
             localStorage.removeItem(`privKey_${userId}`);
             localStorage.removeItem("userId");
             window.location.href = "/login";
