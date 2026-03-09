@@ -8,6 +8,9 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import MatrixRain from "./chatBackgrounds/MatrixRain";
 import ParticlesBg from "./chatBackgrounds/Particlesbg";
 import NeuralBg from "./chatBackgrounds/NeuralBg";
+import AskAIModal from "./AskAIModal";
+import FreeAIChat from "./FreeAIChat";
+
 
 
 // --- E2EE CRYPTO HELPERS ---
@@ -131,6 +134,9 @@ const [dragOver, setDragOver] = useState(false);
 const [draggedFile, setDraggedFile] = useState<File | null>(null);
 const [dragPreviewUrl, setDragPreviewUrl] = useState<string | null>(null);
 const [dragCaption, setDragCaption] = useState("");
+
+const [aiContextMenu, setAiContextMenu] = useState<{ x: number; y: number; msgId: string; content: string } | null>(null);
+const [showFreeAI, setShowFreeAI] = useState(false);
 
 function ReplyMessage({ content }: { content: string }) {
   const raw = content.replace("REPLY_PACKET:", "");
@@ -679,6 +685,14 @@ if (saved?._id) {
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
+  onClick={() => setShowFreeAI(true)}
+  style={{ background: "transparent", border: "1px solid #21262d", borderRadius: "4px", color: "#484F58", cursor: "pointer", fontSize: "10px", fontFamily: "inherit", letterSpacing: "1px", padding: "4px 6px" }}
+  onMouseEnter={e => e.currentTarget.style.color = "#58A6FF"}
+  onMouseLeave={e => e.currentTarget.style.color = "#484F58"}
+>
+  ⚡ AI
+</button>
+          <button
             onClick={() => setBgStyle(prev => prev === "neural" ? "matrix" : prev === "matrix" ? "particles" : prev === "particles" ? "none" : "neural")}
             style={{ background: "transparent", border: "1px solid #21262d", borderRadius: "4px", color: "#484F58", cursor: "pointer", fontSize: "10px", fontFamily: "inherit", letterSpacing: "1px", padding: "4px 6px" }}
             onMouseEnter={e => e.currentTarget.style.color = "#7EE787"}
@@ -782,17 +796,23 @@ onClick={() => {
         </svg>
       </button>
     )}
-    <div style={{
-      width: isAI ? "95%" : "auto",
-      maxWidth: "85%",
-      borderRadius: "4px",
-      padding: "12px 16px",
-      border: isAI ? "1px double #58A6FF" : (isMe ? "1px solid #238636" : "1px solid #30363D"),
-      background: isAI ? "#0d1117" : (isMe ? "#23863622" : "#161b2286"),
-      color: isAI ? "#C9D1D9" : (isMe ? "#7EE787" : "#C9D1D9"),
-      boxShadow: isAI ? "0 0 15px rgba(58, 166, 255, 0.05)" : "none",
-      position: "relative"
-    }}>
+ <div
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setAiContextMenu({ x: e.clientX, y: e.clientY, msgId, content: displayContent });
+      }}
+      style={{
+        width: isAI ? "95%" : "auto",
+        maxWidth: "85%",
+        borderRadius: "4px",
+        padding: "12px 16px",
+        border: isAI ? "1px double #58A6FF" : (isMe ? "1px solid #238636" : "1px solid #30363D"),
+        background: isAI ? "#0d1117" : (isMe ? "#23863622" : "#161b2286"),
+        color: isAI ? "#C9D1D9" : (isMe ? "#7EE787" : "#C9D1D9"),
+        boxShadow: isAI ? "0 0 15px rgba(58, 166, 255, 0.05)" : "none",
+        position: "relative"
+      }}>
       {isAI && (
         <div style={{ fontSize: '9px', color: '#58A6FF', marginBottom: '8px', borderBottom: '1px solid #58A6FF33', paddingBottom: '4px' }}>
           [SYSTEM_DIAGNOSTIC_REPORT] // SOURCE: NEURAL_ENGINE
@@ -1032,6 +1052,17 @@ onClick={() => {
     </div>
   </div>
 )}
+<FreeAIChat
+  open={showFreeAI}
+  onClose={() => setShowFreeAI(false)}
+  onSendToChat={sendMessage}
+/>
+
+<AskAIModal
+  contextMenu={aiContextMenu}
+  onCloseContextMenu={() => setAiContextMenu(null)}
+  onSendToChat={sendMessage}
+/>
 
       {/* Input Section */}
       <div style={{ padding: "16px", borderTop: "2px solid #30363D", background: "#161B22" }}>
