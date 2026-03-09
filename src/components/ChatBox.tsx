@@ -55,7 +55,11 @@ function getMessageStatus(m: any): "sending" | "sent" | "delivered" | "seen" {
 }
 
 function FileMessage({ content }: { content: string }) {
-  const raw = content.replace("FILE_PACKET:", "");
+  const lines = content.split("\n");
+  const packetLine = lines[0];
+  const caption = lines.slice(1).join("\n").trim();
+
+  const raw = packetLine.replace("FILE_PACKET:", "");
   const parts = raw.split("|");
   const url = parts[0] ?? "";
   const name = parts[1] ?? "file";
@@ -68,23 +72,28 @@ function FileMessage({ content }: { content: string }) {
           src={url}
           alt={name}
           onClick={() => window.open(url, "_blank")}
-style={{ maxWidth: "100%", width: "260px", height: "auto", borderRadius: "4px", border: "1px solid #30363D", cursor: "pointer", display: "block", objectFit: "cover" }}        />
+          style={{ maxWidth: "100%", width: "260px", height: "auto", borderRadius: "4px", border: "1px solid #30363D", cursor: "pointer", display: "block", objectFit: "cover" }}
+        />
         <span style={{ fontSize: "10px", color: "#484F58", marginTop: "4px", display: "block" }}>{name}</span>
+        {caption && <span style={{ fontSize: "13px", color: "#C9D1D9", marginTop: "6px", display: "block" }}>{caption}</span>}
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: "4px", padding: "8px 12px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", display: "inline-block" }}>
-      <span style={{ color: "#58A6FF", fontSize: "12px" }}>
-        {type === "application/pdf" ? "[PDF] " : "[FILE] "}
-      </span>
-      <span
-        style={{ color: "#58A6FF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}
-        onClick={() => window.open(url, "_blank")}
-      >
-        {name}
-      </span>
+    <div style={{ marginTop: "4px" }}>
+      <div style={{ padding: "8px 12px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", display: "inline-block" }}>
+        <span style={{ color: "#58A6FF", fontSize: "12px" }}>
+          {type === "application/pdf" ? "[PDF] " : "[FILE] "}
+        </span>
+        <span
+          style={{ color: "#58A6FF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}
+          onClick={() => window.open(url, "_blank")}
+        >
+          {name}
+        </span>
+      </div>
+      {caption && <div style={{ fontSize: "13px", color: "#C9D1D9", marginTop: "6px" }}>{caption}</div>}
     </div>
   );
 }
@@ -117,6 +126,11 @@ const [bgStyle, setBgStyle] = useState<"matrix" | "particles" | "neural" | "none
 const fileInputRef = useRef<HTMLInputElement | null>(null);
 const [uploadProgress, setUploadProgress] = useState(0);
 const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; sender: string } | null>(null);
+
+const [dragOver, setDragOver] = useState(false);
+const [draggedFile, setDraggedFile] = useState<File | null>(null);
+const [dragPreviewUrl, setDragPreviewUrl] = useState<string | null>(null);
+const [dragCaption, setDragCaption] = useState("");
 
 function ReplyMessage({ content }: { content: string }) {
   const raw = content.replace("REPLY_PACKET:", "");
@@ -196,6 +210,65 @@ if (xhr.status >= 200 && xhr.status < 300 && data.url) {
     setIsUploadingFile(false);
     setUploadProgress(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+};
+
+const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  e.preventDefault();
+  setDragOver(false);
+  const file = e.dataTransfer.files?.[0];
+  if (!file) return;
+
+  if (file.size > 15 * 1024 * 1024) {
+    alert("FILE_TOO_LARGE: Max size is 15MB");
+    return;
+  }
+
+  setDraggedFile(file);
+  if (file.type.startsWith("image/")) {
+    setDragPreviewUrl(URL.createObjectURL(file));
+  } else {
+    setDragPreviewUrl(null);
+  }
+};
+
+const handleDragPreviewSend = async () => {
+  if (!draggedFile) return;
+  setIsUploadingFile(true);
+  setUploadProgress(0);
+  setDraggedFile(null);
+  setDragPreviewUrl(null);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", draggedFile);
+    const caption = dragCaption.trim();
+    setDragCaption("");
+
+    await new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = async () => {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300 && data.url) {
+          const packet = `FILE_PACKET:${data.url}|${draggedFile.name}|${draggedFile.type}`;
+          await sendMessage(caption ? `${packet}\n${caption}` : packet);
+        }
+        resolve();
+      };
+      xhr.onerror = () => resolve();
+      xhr.open("POST", "/api/upload-file");
+      xhr.send(formData);
+    });
+  } catch (err) {
+    console.error("Drag upload error:", err);
+  } finally {
+    setIsUploadingFile(false);
+    setUploadProgress(0);
   }
 };
 
@@ -643,7 +716,17 @@ if (saved?._id) {
 
   
 {/* Messages Area */}
-<div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+<div
+  style={{ flex: 1, position: "relative", overflow: "hidden", border: dragOver ? "2px dashed #58A6FF" : "2px solid transparent", transition: "border 0.2s", borderRadius: "4px" }}
+  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+  onDragLeave={() => setDragOver(false)}
+  onDrop={handleDrop}
+>
+  {dragOver && (
+    <div style={{ position: "absolute", inset: 0, background: "rgba(88,166,255,0.05)", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+      <span style={{ color: "#58A6FF", fontSize: "13px", fontFamily: "'Fira Code', monospace" }}>// DROP_FILE_HERE</span>
+    </div>
+  )}
   {bgStyle === "neural" && <NeuralBg />}
 {bgStyle === "matrix" && <MatrixRain />}
 {bgStyle === "particles" && <ParticlesBg />}
@@ -909,6 +992,44 @@ onClick={() => {
     >
       COMMIT_PATCH_TO_CHAT
     </button>
+  </div>
+)}
+
+{draggedFile && (
+  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px" }}>
+    <div style={{ background: "#161B22", border: "1px solid #30363D", borderRadius: "8px", padding: "20px", width: "320px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: "#58A6FF", fontSize: "11px", fontFamily: "'Fira Code', monospace" }}>// ATTACH_FILE</span>
+        <button onClick={() => { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); }} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", fontSize: "14px" }}>✕</button>
+      </div>
+
+      {dragPreviewUrl ? (
+        <img src={dragPreviewUrl} alt="preview" style={{ width: "100%", borderRadius: "4px", border: "1px solid #30363D", maxHeight: "220px", objectFit: "contain" }} />
+      ) : (
+        <div style={{ padding: "20px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", textAlign: "center" }}>
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>📎</div>
+          <div style={{ color: "#8B949E", fontSize: "12px", fontFamily: "'Fira Code', monospace", wordBreak: "break-all" }}>{draggedFile.name}</div>
+          <div style={{ color: "#484F58", fontSize: "10px", marginTop: "4px" }}>{(draggedFile.size / 1024).toFixed(1)} KB</div>
+        </div>
+      )}
+
+      <input
+        autoFocus
+        placeholder="Add a caption... (optional)"
+        value={dragCaption}
+        onChange={(e) => setDragCaption(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") handleDragPreviewSend(); if (e.key === "Escape") { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); } }}
+        style={{ background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", padding: "8px 12px", color: "#C9D1D9", fontSize: "13px", fontFamily: "'Fira Code', monospace", outline: "none" }}
+      />
+
+      <button
+        onClick={handleDragPreviewSend}
+        style={{ background: "#23863622", color: "#7EE787", border: "1px solid #238636", borderRadius: "4px", padding: "10px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold" }}
+      >
+        SEND_FILE
+      </button>
+    </div>
   </div>
 )}
 
