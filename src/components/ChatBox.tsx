@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
+import MatrixRain from "./chatBackgrounds/MatrixRain";
+import ParticlesBg from "./chatBackgrounds/Particlesbg";
+import NeuralBg from "./chatBackgrounds/NeuralBg";
 
 
 // --- E2EE CRYPTO HELPERS ---
@@ -51,13 +54,49 @@ function getMessageStatus(m: any): "sending" | "sent" | "delivered" | "seen" {
   return "sent";
 }
 
+function FileMessage({ content }: { content: string }) {
+  const raw = content.replace("FILE_PACKET:", "");
+  const parts = raw.split("|");
+  const url = parts[0] ?? "";
+  const name = parts[1] ?? "file";
+  const type = parts[2] ?? "";
+
+  if (type.startsWith("image/")) {
+    return (
+      <div style={{ marginTop: "4px" }}>
+        <img
+          src={url}
+          alt={name}
+          onClick={() => window.open(url, "_blank")}
+style={{ maxWidth: "100%", width: "260px", height: "auto", borderRadius: "4px", border: "1px solid #30363D", cursor: "pointer", display: "block", objectFit: "cover" }}        />
+        <span style={{ fontSize: "10px", color: "#484F58", marginTop: "4px", display: "block" }}>{name}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: "4px", padding: "8px 12px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", display: "inline-block" }}>
+      <span style={{ color: "#58A6FF", fontSize: "12px" }}>
+        {type === "application/pdf" ? "[PDF] " : "[FILE] "}
+      </span>
+      <span
+        style={{ color: "#58A6FF", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}
+        onClick={() => window.open(url, "_blank")}
+      >
+        {name}
+      </span>
+    </div>
+  );
+}
+
 export default function ChatBox({ userId, peerId }: { userId: string, peerId: string }) {
   const socketRef = useSocket(userId);
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
-  const [isPeerTyping, setIsPeerTyping] = useState(false);
+const [bgStyle, setBgStyle] = useState<"matrix" | "particles" | "neural" | "none">("neural");  const [isPeerTyping, setIsPeerTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [peerName, setPeerName] = useState("");
   const [peerAvatar, setPeerAvatar] = useState("");
@@ -74,6 +113,91 @@ export default function ChatBox({ userId, peerId }: { userId: string, peerId: st
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [reviewData, setReviewData] = useState({ id: "", code: "", comments: "" });
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+const fileInputRef = useRef<HTMLInputElement | null>(null);
+const [uploadProgress, setUploadProgress] = useState(0);
+const [replyingTo, setReplyingTo] = useState<{ id: string; text: string; sender: string } | null>(null);
+
+function ReplyMessage({ content }: { content: string }) {
+  const raw = content.replace("REPLY_PACKET:", "");
+  const separatorIndex = raw.lastIndexOf("|");
+  const quoted = raw.substring(0, separatorIndex);
+  const actual = raw.substring(separatorIndex + 1);
+
+  return (
+    <div>
+      <div style={{
+        borderLeft: "2px solid #58A6FF",
+        paddingLeft: "8px",
+        marginBottom: "6px",
+        opacity: 0.6,
+        fontSize: "12px",
+        color: "#8B949E",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        maxWidth: "100%"
+      }}>
+        {quoted.startsWith("FILE_PACKET:") ? "[file]" : 
+         quoted.startsWith("AUDIO_PACKET:") ? "[voice message]" : 
+         quoted.split("\n")[0].substring(0, 60)}
+      </div>
+      {actual.startsWith("FILE_PACKET:") ? (
+        <FileMessage content={actual} />
+      ) : (
+        <CodeReviewer text={actual} />
+      )}
+    </div>
+  );
+}
+
+const handleFileSend = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (file.size > 15 * 1024 * 1024) {
+    alert("FILE_TOO_LARGE: Max size is 15MB");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    return;
+  }
+
+  setIsUploadingFile(true);
+  setUploadProgress(0);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    await new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+      xhr.onload = async () => {
+        const data = JSON.parse(xhr.responseText);
+if (xhr.status >= 200 && xhr.status < 300 && data.url) {
+            await sendMessage(`FILE_PACKET:${data.url}|${file.name}|${file.type}`);
+        } else {
+          console.error("File upload failed");
+        }
+        resolve();
+      };
+      xhr.onerror = () => resolve();
+      xhr.open("POST", "/api/upload-file");
+      xhr.send(formData);
+    });
+
+  } catch (err) {
+    console.error("File upload error:", err);
+  } finally {
+    setIsUploadingFile(false);
+    setUploadProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+};
 
  
 const requestAIDescription = async (msgId: string, rawCode: string) => {
@@ -338,8 +462,16 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
   };
 
 const sendMessage = async (overrideContent?: string) => {
-  const contentToSend = overrideContent || text;
-  if (!contentToSend.trim() || !peerPublicKey) return;
+  const baseContent = overrideContent || text;
+if (!baseContent.trim() || !peerPublicKey) return;
+const quoteText = replyingTo?.text.startsWith("REPLY_PACKET:")
+  ? replyingTo.text.substring(replyingTo.text.lastIndexOf("|") + 1)
+  : replyingTo?.text ?? "";
+
+const contentToSend = replyingTo
+  ? `REPLY_PACKET:${quoteText}|${baseContent}`
+  : baseContent;
+setReplyingTo(null);
 
   if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   socketRef.current?.emit("typing", { to: peerId, from: userId, isTyping: false });
@@ -471,17 +603,28 @@ if (saved?._id) {
             {isPeerTyping && <span style={{ fontSize: "10px", color: "#7EE787" }}>// typing...</span>}
           </div>
         </div>
-        
-        <button 
-          onClick={() => { setIsGrepActive(!isGrepActive); setGrepQuery(""); }} 
-          style={{ background: "transparent", border: "none", color: isGrepActive ? "#7EE787" : "#8B949E", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
-        >
-          {isGrepActive ? (
-            <span style={{ fontSize: "12px", border: "1px solid #30363D", padding: "2px 6px", borderRadius: "4px" }}>ESC</span>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          )}
-        </button>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={() => setBgStyle(prev => prev === "neural" ? "matrix" : prev === "matrix" ? "particles" : prev === "particles" ? "none" : "neural")}
+            style={{ background: "transparent", border: "1px solid #21262d", borderRadius: "4px", color: "#484F58", cursor: "pointer", fontSize: "10px", fontFamily: "inherit", letterSpacing: "1px", padding: "4px 6px" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#7EE787"}
+            onMouseLeave={e => e.currentTarget.style.color = "#484F58"}
+          >
+            {bgStyle === "neural" ? "NEURAL" : bgStyle === "matrix" ? "MATRIX" : bgStyle === "particles" ? "BINARY" : "NONE"}
+          </button>
+          <button 
+            onClick={() => { setIsGrepActive(!isGrepActive); setGrepQuery(""); }} 
+            style={{ background: "transparent", border: "none", color: isGrepActive ? "#7EE787" : "#8B949E", cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}
+          >
+            {isGrepActive ? (
+              <span style={{ fontSize: "12px", border: "1px solid #30363D", padding: "2px 6px", borderRadius: "4px" }}>ESC</span>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            )}
+          </button>
+        </div>
+
       </div>
 
       {/* Search Bar - Conditional */}
@@ -498,9 +641,13 @@ if (saved?._id) {
         </div>
       )}
 
-      {/* Messages Area */}
-      <div className="terminal-scroll" style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
-        {displayedMessages.length === 0 && isGrepActive && (
+  
+{/* Messages Area */}
+<div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+  {bgStyle === "neural" && <NeuralBg />}
+{bgStyle === "matrix" && <MatrixRain />}
+{bgStyle === "particles" && <ParticlesBg />}
+  <div className="terminal-scroll" style={{ position: "relative", zIndex: 1, height: "100%", overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>  {displayedMessages.length === 0 && isGrepActive && (
           <div style={{ color: "#484F58", textAlign: "center", marginTop: "20px", fontSize: "12px" }}>
             -- NO MATCHES FOUND FOR: {grepQuery} --
           </div>
@@ -514,14 +661,51 @@ if (saved?._id) {
   const isAI = m.senderId === "AI_BOT" || displayContent.startsWith("### 🧠 LOGIC_EXPLAINED");
 
   return (
-    <div key={msgId} style={{ 
-      alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"),
-      width: isAI ? "95%" : "auto", 
-      maxWidth: "85%", 
-      borderRadius: "4px", 
+  <div
+    key={msgId}
+    style={{ alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"), position: "relative" }}
+    onMouseEnter={e => {
+      const btn = e.currentTarget.querySelector(".reply-btn") as HTMLElement;
+      if (btn) btn.style.opacity = "1";
+    }}
+    onMouseLeave={e => {
+      const btn = e.currentTarget.querySelector(".reply-btn") as HTMLElement;
+      if (btn) btn.style.opacity = "0";
+    }}
+  >
+    {!isAI && (
+      <button
+        className="reply-btn"
+onClick={() => {
+  setReplyingTo({ id: msgId, text: displayContent, sender: isMe ? "you" : peerName });
+  setTimeout(() => textareaRef.current?.focus(), 50);
+}}        style={{
+          position: "absolute",
+          top: "50%",
+          transform: "translateY(-50%)",
+          [isMe ? "left" : "right"]: "-28px",
+          opacity: 0,
+          transition: "opacity 0.15s",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "#7f858d",
+          padding: "4px",
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 17 4 12 9 7"></polyline>
+          <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+        </svg>
+      </button>
+    )}
+    <div style={{
+      width: isAI ? "95%" : "auto",
+      maxWidth: "85%",
+      borderRadius: "4px",
       padding: "12px 16px",
       border: isAI ? "1px double #58A6FF" : (isMe ? "1px solid #238636" : "1px solid #30363D"),
-      background: isAI ? "#0d1117" : (isMe ? "#23863622" : "#161B22"),
+      background: isAI ? "#0d1117" : (isMe ? "#23863622" : "#161b2286"),
       color: isAI ? "#C9D1D9" : (isMe ? "#7EE787" : "#C9D1D9"),
       boxShadow: isAI ? "0 0 15px rgba(58, 166, 255, 0.05)" : "none",
       position: "relative"
@@ -546,9 +730,15 @@ if (saved?._id) {
        fontSize: '13px',
        color: '#ADC6FF' 
     }}>
+
+
       {displayContent.replace("### 🧠 LOGIC_EXPLAINED", "").trim()}
     </div>
   </div>
+) : displayContent.startsWith("FILE_PACKET:") ? (
+  <FileMessage content={displayContent} />
+) : displayContent.startsWith("REPLY_PACKET:") ? (
+  <ReplyMessage content={displayContent} />
 ) : (
   <CodeReviewer text={displayContent} />
 )}
@@ -619,11 +809,13 @@ if (saved?._id) {
   </span>
   {isMe && !isAI && <TickIcon status={getMessageStatus(m)} />}
 </div>
+   </div>
     </div>
   );
 })}
         <div ref={messagesEndRef} />
       </div>
+      </div> 
 
 {isReviewMode && (
   <div style={{ 
@@ -722,6 +914,32 @@ if (saved?._id) {
 
       {/* Input Section */}
       <div style={{ padding: "16px", borderTop: "2px solid #30363D", background: "#161B22" }}>
+        {replyingTo && (
+  <div style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    background: "#0D1117",
+    borderLeft: "2px solid #58A6FF",
+    padding: "6px 12px",
+    marginBottom: "8px",
+    borderRadius: "4px",
+    fontSize: "12px",
+    color: "#8B949E"
+  }}>
+    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      // replying: {replyingTo.text.startsWith("FILE_PACKET:") ? "[file]" : 
+                   replyingTo.text.startsWith("AUDIO_PACKET:") ? "[voice]" : 
+                   replyingTo.text.split("\n")[0].substring(0, 50)}
+    </span>
+    <button
+      onClick={() => setReplyingTo(null)}
+      style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", fontSize: "12px", marginLeft: "8px", flexShrink: 0 }}
+    >
+      ✕
+    </button>
+  </div>
+)}
         {text.includes("```") && (
           <div style={{ 
             padding: "10px", 
@@ -733,13 +951,15 @@ if (saved?._id) {
             margin: "0 16px -1px 16px" 
           }}>
             <div style={{ color: "#238636", fontSize: "10px", marginBottom: "8px" }}>// PREVIEW_MODE: DETECTED_CODE_BLOCK</div>
-            <CodeReviewer text={text} />
+            <CodeReviewer text={text}/>
           </div>
         )}
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "6px", padding: "4px 8px" }}>
           <span style={{ color: "#7EE787", fontWeight: "bold", fontSize: "14px", marginLeft: "4px", userSelect: "none" }}>$</span>
 
           <textarea 
+            ref={textareaRef}
+
             rows={text.split('\n').length > 3 ? 3 : 1} 
             style={{ 
               flex: 1, 
@@ -778,7 +998,41 @@ if (saved?._id) {
           )}
 
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-
+<input
+  ref={fileInputRef}
+  type="file"
+  accept="image/*,.pdf,*/*"
+  style={{ display: "none" }}
+  onChange={handleFileSend}
+/>
+<button
+  onClick={() => fileInputRef.current?.click()}
+  disabled={isUploadingFile}
+  style={{
+    background: isUploadingFile ? "rgba(88,166,255,0.1)" : "transparent",
+    border: isUploadingFile ? "1px solid #58A6FF" : "1px solid transparent",
+    color: isUploadingFile ? "#58A6FF" : "#8B949E",
+    cursor: isUploadingFile ? "not-allowed" : "pointer",
+    borderRadius: "4px",
+    padding: "6px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s",
+    outline: "none"
+  }}
+  onMouseEnter={e => { if (!isUploadingFile) e.currentTarget.style.color = "#C9D1D9" }}
+  onMouseLeave={e => { if (!isUploadingFile) e.currentTarget.style.color = "#8B949E" }}
+  title={isUploadingFile ? "UPLOADING..." : "ATTACH_FILE"}
+>
+  {isUploadingFile ? (
+    <span style={{ fontSize: "9px", fontWeight: "bold" }}>{uploadProgress}%</span>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+    </svg>
+  )}
+</button>
             <button 
   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
   style={{ 

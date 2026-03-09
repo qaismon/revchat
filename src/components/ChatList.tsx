@@ -192,6 +192,8 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
 
       {/* ── Header: current user identity ── */}
       <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid #111520", background: "#07090d", display: "flex", alignItems: "center", gap: "10px"}}>
+        <div style={{ fontSize: "10px", color: "#2d3440", letterSpacing: "0.5px", border: "1px solid #1a1f2e", padding: "2px 5px", borderRadius: "4px", marginRight:"70px" }}>RevChat v1.1</div>
+      
         <div style={{ position: "relative", flexShrink: 0 }}>
           <div onClick={() => router.push("/profile")} style={{ width: "34px", height: "34px", borderRadius: "100px", border: "1px solid #1a2035", background: "#0d1117", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", cursor:"pointer"}}>
             {currentUserAvatar
@@ -209,7 +211,6 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
           
         </div>
         {/* Version badge */}
-        <div style={{ fontSize: "10px", color: "#2d3440", letterSpacing: "0.5px", border: "1px solid #1a1f2e", padding: "2px 5px", borderRadius: "4px" }}>RevChat v1.1</div>
       </div>
 
       {/* ── Tab Switcher ── */}
