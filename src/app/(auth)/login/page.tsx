@@ -46,6 +46,20 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+const [forgotEmail, setForgotEmail] = useState("");
+const [forgotStatus, setForgotStatus] = useState<"idle"|"loading"|"sent">("idle");
+
+const handleForgotPassword = async () => {
+  if (!forgotEmail.trim()) return;
+  setForgotStatus("loading");
+  await fetch("/api/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: forgotEmail }),
+  });
+  setForgotStatus("sent");
+};
 
   useEffect(() => {
     fetch("/api/me").then((res) => {
@@ -239,8 +253,12 @@ export default function LoginPage() {
               <input type="checkbox" style={{ accentColor: "#238636" }} checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
               Persist email
             </label>
-            <span style={{ fontSize: "12px", color: "#58A6FF", cursor: "pointer" }}>forgot_password</span>
-          </div>
+<span
+  onClick={() => setShowForgotModal(true)}
+  style={{ fontSize: "12px", color: "#58A6FF", cursor: "pointer" }}
+>
+  forgot_password
+</span>          </div>
         )}
 
         <button type="submit" style={{ ...buttonStyle, opacity: isUploading ? 0.5 : 1, cursor: isUploading ? "not-allowed" : "pointer" }} disabled={isUploading}>
@@ -265,6 +283,46 @@ export default function LoginPage() {
           </span>
         </p>
       </form>
+      {showForgotModal && (
+  <div onClick={() => setShowForgotModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div onClick={e => e.stopPropagation()} style={{ background: "#161B22", border: "1px solid #30363D", borderRadius: "8px", padding: "24px", width: "340px", display: "flex", flexDirection: "column", gap: "16px", fontFamily: "'Fira Code', monospace" }}>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: "#58A6FF", fontSize: "12px" }}>// FORGOT_PASSWORD</span>
+        <button onClick={() => { setShowForgotModal(false); setForgotStatus("idle"); setForgotEmail(""); }} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer" }}>✕</button>
+      </div>
+
+      {forgotStatus === "sent" ? (
+        <div style={{ color: "#7EE787", fontSize: "12px", background: "#23863622", border: "1px solid #238636", padding: "12px", borderRadius: "4px" }}>
+          [✓] Reset link sent. Check your email.
+        </div>
+      ) : (
+        <>
+          <p style={{ color: "#8B949E", fontSize: "12px", margin: 0 }}>Enter your email and we'll send a reset link.</p>
+          <div style={{ display: "flex", alignItems: "center", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", paddingLeft: "10px" }}>
+            <span style={{ color: "#7EE787", fontSize: "14px", fontWeight: "bold" }}>$</span>
+            <input
+              autoFocus
+              type="email"
+              placeholder="email_address"
+              value={forgotEmail}
+              onChange={e => setForgotEmail(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleForgotPassword(); }}
+              style={{ flex: 1, padding: "12px", background: "transparent", border: "none", color: "#C9D1D9", outline: "none", fontSize: "14px" }}
+            />
+          </div>
+          <button
+            onClick={handleForgotPassword}
+            disabled={forgotStatus === "loading"}
+            style={{ padding: "10px", borderRadius: "4px", border: "1px solid #238636", background: "#23863622", color: "#7EE787", fontWeight: "bold", cursor: "pointer" }}
+          >
+            {forgotStatus === "loading" ? "SENDING..." : "SEND_RESET_LINK"}
+          </button>
+        </>
+      )}
+    </div>
+  </div>
+)}
     </div>
   );
 }

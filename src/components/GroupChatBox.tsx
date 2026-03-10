@@ -330,7 +330,7 @@ export default function GroupChatBox({
     });
   };
 
-  const onEmojiClick = (emojiData: any) => setText((prev) => prev + emojiData.emoji);
+  const onEmojiClick = (emojiData: any) => setText((prev) => prev + emojiData.emoji); 
 
   const displayedMessages = isGrepActive
     ? messages.filter((m) => m.content?.toLowerCase().includes(grepQuery.toLowerCase()))

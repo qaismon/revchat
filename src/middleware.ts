@@ -6,9 +6,14 @@ export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
   const isApiRoute = path.startsWith("/api");
-  const isAuthPage = path.startsWith("/login") || path.startsWith("/register");
-  const isPublicApi = path.startsWith("/api/login") || path.startsWith("/api/register") || path.startsWith("/api/upload-avatar") || path.startsWith("/api/upload-voice"); 
-
+const isAuthPage = path.startsWith("/login") || path.startsWith("/register") || path.startsWith("/reset-password");
+const isPublicApi = 
+  path.startsWith("/api/login") || 
+  path.startsWith("/api/register") || 
+  path.startsWith("/api/upload-avatar") || 
+  path.startsWith("/api/upload-voice") ||
+  path.startsWith("/api/forgot-password") ||
+  path.startsWith("/api/reset-password");
 
   if (isApiRoute) {
     if (!token && !isPublicApi) {

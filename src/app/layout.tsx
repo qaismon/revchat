@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Fira_Code } from 'next/font/google'; // 1. Import Fira_Code
+import { Fira_Code } from 'next/font/google'; 
 import "./globals.css";
 
-// 2. Configure the font
 const firaCode = Fira_Code({
   subsets: ['latin'],
   display: 'swap',
@@ -21,7 +20,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* 3. Apply the class to the body and ensure antialiasing */}
       <body className={`${firaCode.className} antialiased`}>
         {children}
       </body>

@@ -106,7 +106,8 @@ export default function ChatBox({ userId, peerId }: { userId: string, peerId: st
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
-const [bgStyle, setBgStyle] = useState<"matrix" | "particles" | "neural" | "none">("neural");  const [isPeerTyping, setIsPeerTyping] = useState(false);
+const [bgStyle, setBgStyle] = useState<"matrix" | "particles" | "neural" | "none">("matrix");  
+const [isPeerTyping, setIsPeerTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -642,7 +643,7 @@ if (saved?._id) {
 };
 
   // --- SEARCH LOGIC ---
-  const displayedMessages = isGrepActive 
+const displayedMessages = isGrepActive 
     ? messages.filter(m => (decryptedMessages[m._id || m.createdAt] || "").toLowerCase().includes(grepQuery.toLowerCase()))
     : messages;
 
@@ -690,7 +691,7 @@ if (saved?._id) {
   onMouseEnter={e => e.currentTarget.style.color = "#58A6FF"}
   onMouseLeave={e => e.currentTarget.style.color = "#484F58"}
 >
-  ⚡ AI
+  AI
 </button>
           <button
             onClick={() => setBgStyle(prev => prev === "neural" ? "matrix" : prev === "matrix" ? "particles" : prev === "particles" ? "none" : "neural")}
