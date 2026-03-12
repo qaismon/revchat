@@ -5,7 +5,7 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get("accessToken")?.value;
   const path = req.nextUrl.pathname;
 
-  const isApiRoute = path.startsWith("/api");
+const isApiRoute = path.startsWith("/api");
 const isAuthPage = path.startsWith("/login") || path.startsWith("/register") || path.startsWith("/reset-password");
 const isPublicApi = 
   path.startsWith("/api/login") || 
@@ -13,6 +13,7 @@ const isPublicApi =
   path.startsWith("/api/upload-avatar") || 
   path.startsWith("/api/upload-voice") ||
   path.startsWith("/api/forgot-password") ||
+  path.startsWith("/api/messages") ||
   path.startsWith("/api/reset-password");
 
   if (isApiRoute) {
@@ -20,13 +21,11 @@ const isPublicApi =
           return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
-    // RULE B: If LOGGED IN - Block MANUAL browser visits to ANY API route
     const isBrowserVisit = req.headers.get("accept")?.includes("text/html");
     if (token && isBrowserVisit) {
       return NextResponse.redirect(new URL("/unauthorized", req.url));
     }
 
-    // Allow internal app fetch calls to proceed
     return NextResponse.next();
   }
 

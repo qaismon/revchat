@@ -101,6 +101,10 @@ app.prepare().then(() => {
       });
     });
 
+    socket.on("delete-message", ({ messageId, peerId }) => {
+  io.to(peerId).emit("message-deleted", { messageId });
+});
+
     // GROUP: Updates
     socket.on("trigger-group-update", (data) => {
       if (data.action === "delete") {

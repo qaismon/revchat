@@ -139,6 +139,9 @@ const [dragCaption, setDragCaption] = useState("");
 const [aiContextMenu, setAiContextMenu] = useState<{ x: number; y: number; msgId: string; content: string } | null>(null);
 const [showFreeAI, setShowFreeAI] = useState(false);
 
+const [deletingId, setDeletingId] = useState<string | null>(null);
+const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
 function ReplyMessage({ content }: { content: string }) {
   const raw = content.replace("REPLY_PACKET:", "");
   const separatorIndex = raw.lastIndexOf("|");
@@ -378,6 +381,31 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
   }
 };
 
+const handleDeleteMessage = async (msgId: string) => {
+  setDeletingId(msgId);
+  try {
+    await fetch(`/api/messages/${msgId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    setMessages(prev => prev.map(m =>
+      m._id === msgId ? { ...m, deleted: true } : m
+    ));
+    setDecryptedMessages(prev => {
+      const next = { ...prev };
+      delete next[msgId];
+      return next;
+    });
+    socketRef.current?.emit("delete-message", { messageId: msgId, peerId });
+  } catch (err) {
+    console.error("Delete failed:", err);
+  } finally {
+    setDeletingId(null);
+    setDeleteConfirmId(null);
+  }
+};
+
   const scrollToBottom = useCallback(() => {
     if (!isGrepActive) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -515,8 +543,21 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
   }
 };
 
+const handleDeleted = ({ messageId }: { messageId: string }) => {
+  setMessages(prev => prev.map(m =>
+    m._id === messageId ? { ...m, deleted: true } : m
+  ));
+  setDecryptedMessages(prev => {
+    const next = { ...prev };
+    delete next[messageId];
+    return next;
+  });
+};
 
 
+
+
+    socket.on("message-deleted", handleDeleted);
     socket.on("receive-message", handleMessage);
     socket.on("messages-seen", handleSeen);
     socket.on("display-typing", handleTyping);
@@ -525,7 +566,7 @@ const requestAIReview = async (msgId: string, rawCode: string) => {
 
     return () => {
       socket.off("message-delivered", handleDelivered);
-
+      socket.off("message-deleted", handleDeleted);
       socket.off("receive-message", handleMessage);
       socket.off("messages-seen", handleSeen);
       socket.off("display-typing", handleTyping);
@@ -762,41 +803,76 @@ const displayedMessages = isGrepActive
   <div
     key={msgId}
     style={{ alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"), position: "relative" }}
-    onMouseEnter={e => {
-      const btn = e.currentTarget.querySelector(".reply-btn") as HTMLElement;
-      if (btn) btn.style.opacity = "1";
-    }}
-    onMouseLeave={e => {
-      const btn = e.currentTarget.querySelector(".reply-btn") as HTMLElement;
-      if (btn) btn.style.opacity = "0";
-    }}
+   onMouseEnter={e => {
+  e.currentTarget.querySelectorAll(".reply-btn").forEach((btn) => {
+    (btn as HTMLElement).style.opacity = "1";
+  });
+}}
+onMouseLeave={e => {
+  e.currentTarget.querySelectorAll(".reply-btn").forEach((btn) => {
+    (btn as HTMLElement).style.opacity = "0";
+  });
+}}
   >
-    {!isAI && (
-      <button
-        className="reply-btn"
-onClick={() => {
-  setReplyingTo({ id: msgId, text: displayContent, sender: isMe ? "you" : peerName });
-  setTimeout(() => textareaRef.current?.focus(), 50);
-}}        style={{
-          position: "absolute",
-          top: "50%",
-          transform: "translateY(-50%)",
-          [isMe ? "left" : "right"]: "-28px",
-          opacity: 0,
-          transition: "opacity 0.15s",
-          background: "transparent",
-          border: "none",
-          cursor: "pointer",
-          color: "#7f858d",
-          padding: "4px",
-        }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="9 17 4 12 9 7"></polyline>
-          <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+   {!isAI && !m.deleted && (
+  <>
+    <button
+      className="reply-btn"
+      onClick={() => {
+        setReplyingTo({ id: msgId, text: displayContent, sender: isMe ? "you" : peerName });
+        setTimeout(() => textareaRef.current?.focus(), 50);
+      }}
+      style={{
+        position: "absolute",
+        top: "50%",
+        transform: "translateY(-50%)",
+        [isMe ? "left" : "right"]: "-28px",
+        opacity: 0,
+        transition: "opacity 0.15s",
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        color: "#7f858d",
+        padding: "4px",
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 17 4 12 9 7"></polyline>
+        <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+      </svg>
+    </button>
+
+    {isMe && (
+  <button
+    className="reply-btn"
+    onClick={() => setDeleteConfirmId(msgId)}
+    disabled={deletingId === msgId}
+    style={{
+      position: "absolute",
+      top: "50%",
+      transform: "translateY(-50%)",
+      left: "-50px",  
+      opacity: 0,
+      transition: "opacity 0.15s",
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      color: "#f85149",
+      padding: "4px",
+    }}
+    title="DELETE_MESSAGE"
+  >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+          <path d="M10 11v6"></path>
+          <path d="M14 11v6"></path>
+          <path d="M9 6V4h6v2"></path>
         </svg>
       </button>
     )}
+  </>
+)}
  <div
       onContextMenu={(e) => {
         e.preventDefault();
@@ -825,17 +901,13 @@ onClick={() => {
           {isAI ? "⚡" : (isMe ? ">" : "$")}
         </span>
         
-       {isAI ? (
+  {m.deleted ? (
+  <span style={{ color: "#484F58", fontSize: "12px", fontStyle: "italic" }}>
+    // message_deleted
+  </span>
+) : isAI ? (
   <div style={{ lineHeight: "1.6", color: "#C9D1D9" }}>
-    <div style={{ 
-       whiteSpace: "pre-wrap",
-       wordBreak: "break-word",
-       fontFamily: "'Fira Code', monospace", 
-       fontSize: '13px',
-       color: '#ADC6FF' 
-    }}>
-
-
+    <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "'Fira Code', monospace", fontSize: '13px', color: '#ADC6FF' }}>
       {displayContent.replace("### 🧠 LOGIC_EXPLAINED", "").trim()}
     </div>
   </div>
@@ -849,7 +921,8 @@ onClick={() => {
       </div>
       
   
-      {displayContent.includes("```") && (
+  {!m.deleted && displayContent.includes("```") && (
+
   <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap" }}>
     <button 
       onClick={() => requestAIReview(msgId, displayContent)}
@@ -1293,6 +1366,68 @@ onClick={() => {
           <span style={{ fontSize: "10px", color: "#484F58" }}>chars: {text.length}</span>
         </div>
       </div>
+
+{deleteConfirmId && (
+  <div style={{
+    position: "fixed", top: "16px", right: "16px", zIndex: 9999,
+    width: "300px",
+    background: "#0d1017",
+    border: "1px solid #3a1a1a",
+    borderLeft: "3px solid #f85149",
+    borderRadius: "8px",
+    padding: "14px 16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+    fontFamily: "'Fira Code', monospace",
+    animation: "fadeIn 0.2s ease"
+  }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <span style={{ color: "#f85149", fontSize: "13px" }}>⚠</span>
+      <span style={{ color: "#C9D1D9", fontSize: "12px", fontWeight: "bold" }}>DELETE_MESSAGE</span>
+    </div>
+    <p style={{ color: "#8B949E", fontSize: "11px", margin: 0, lineHeight: "1.5" }}>
+      This will delete the message for everyone. This action cannot be undone.
+    </p>
+    <div style={{ display: "flex", gap: "8px" }}>
+      <button
+        onClick={() => handleDeleteMessage(deleteConfirmId)}
+        style={{
+          flex: 1,
+          background: "#f8514922",
+          color: "#f85149",
+          border: "1px solid #f85149",
+          borderRadius: "4px",
+          padding: "7px",
+          cursor: "pointer",
+          fontFamily: "'Fira Code', monospace",
+          fontSize: "11px",
+          fontWeight: "bold"
+        }}
+      >
+        CONFIRM_DELETE
+      </button>
+      <button
+        onClick={() => setDeleteConfirmId(null)}
+        style={{
+          flex: 1,
+          background: "transparent",
+          color: "#8B949E",
+          border: "1px solid #30363D",
+          borderRadius: "4px",
+          padding: "7px",
+          cursor: "pointer",
+          fontFamily: "'Fira Code', monospace",
+          fontSize: "11px"
+        }}
+      >
+        CANCEL
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

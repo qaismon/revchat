@@ -14,12 +14,16 @@ const MessageSchema = new Schema(
     },
     content: {
       type: String,
-      required: true,
+      required: false,
     },
     contentSender: {
       type: String,
-      required: true,
+      required: false,
     },
+    deleted: {
+  type: Boolean,
+  default: false,
+},
     delivered: {
       type: Boolean,
       default: false,
