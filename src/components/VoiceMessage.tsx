@@ -46,16 +46,16 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
 
   return (
     <div style={{ 
-      background: "#0D1117", 
-      border: "1px solid #30363D", 
-      borderRadius: "6px", 
-      padding: "12px", 
-      display: "flex", 
-      alignItems: "center", 
-      gap: "15px",
-      minWidth: "280px", // Increased slightly for time display
-      marginTop: "5px"
-    }}>
+  background: "#0D1117", 
+  border: "1px solid #30363D", 
+  borderRadius: "6px", 
+  padding: "12px", 
+  display: "flex", 
+  alignItems: "center", 
+  gap: "15px",
+  width: "100%",   // ← was minWidth: "280px"
+  marginTop: "5px"
+}}>
       <audio 
         ref={audioRef} 
         src={src} 

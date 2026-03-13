@@ -10,6 +10,7 @@ import ParticlesBg from "./chatBackgrounds/Particlesbg";
 import NeuralBg from "./chatBackgrounds/NeuralBg";
 import AskAIModal from "./AskAIModal";
 import FreeAIChat from "./FreeAIChat";
+import VoiceMessage from "./VoiceMessage";
 
 
 
@@ -913,6 +914,8 @@ onMouseLeave={e => {
   </div>
 ) : displayContent.startsWith("FILE_PACKET:") ? (
   <FileMessage content={displayContent} />
+) : displayContent.startsWith("AUDIO_PACKET:") ? (
+  <VoiceMessage src={displayContent.replace("AUDIO_PACKET:", "")} />  // ← ADD THIS
 ) : displayContent.startsWith("REPLY_PACKET:") ? (
   <ReplyMessage content={displayContent} />
 ) : (
