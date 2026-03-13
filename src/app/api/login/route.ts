@@ -33,13 +33,13 @@ export async function POST(req: Request) {
     }, { status: 200 });
 
     // 3. Set the Cookie (match the name 'accessToken' used in your /api/me)
-    response.cookies.set("accessToken", token, {
-      httpOnly: true, // Security: prevents JS from reading the cookie
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-      path: "/",
-    });
+   response.cookies.set("accessToken", token, {
+  httpOnly: true,
+  secure: false,
+  sameSite: "lax",
+  maxAge: 60 * 60 * 24 * 7,
+  path: "/",
+});
 
     return response;
   } catch (error: any) {
