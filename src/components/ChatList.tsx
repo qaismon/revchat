@@ -127,8 +127,16 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
     socket.on("receive-group-message", handleGroupMessage);
     socket.on("group-updated", handleGroupUpdate);
     socket.on("get-online-users", (ids: string[]) => setOnlineUsers(ids.map(id => String(id))));
-    socket.on("friend-request-received", () => {
-  loadFriendRequests();
+    socket.on("friend-request-received", async () => {
+  // Fetch directly — no stale closure
+  try {
+    const res = await fetch(`/api/friends?myId=${currentUserId}`);
+    const data = await res.json();
+    setIncomingRequests(data.incoming || []);
+    setOutgoingRequests(data.outgoing || []);
+  } catch (err) {
+    console.error("Failed to load friend requests:", err);
+  }
 });
 
 socket.on("friend-request-updated", ({ action }: { action: string }) => {
