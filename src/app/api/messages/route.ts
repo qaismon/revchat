@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Message from "@/models/Message";
+import Friendship from "@/models/Friendship";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -35,6 +36,17 @@ export async function POST(req: Request) {
   
   // Destructure contentSender from the request body
   const { senderId, receiverId, content, contentSender } = body;
+
+const friendship = await Friendship.findOne({
+  status: "accepted",
+  $or: [
+    { requester: senderId, recipient: receiverId },
+    { requester: receiverId, recipient: senderId },
+  ],
+});
+if (!friendship) {
+  return NextResponse.json({ error: "Not friends" }, { status: 403 });
+}
 
   // contentSender is now a required field for the double-encryption strategy
   if (!senderId || !receiverId || !content || !contentSender) {
