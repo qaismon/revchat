@@ -336,25 +336,7 @@ export default function ChatList({
 
       {/* List */}
       <div className="cl-scroll flex-1 overflow-y-auto px-2 pb-2 flex flex-col gap-0.5">
-        {/* Discovery */}
-        {isInSearch && searchResults.length > 0 && activeTab === "dms" && (
-          <div className="fade-up">
-            <div className="text-[9px] text-[#2d3440] tracking-widest px-0.5 py-1.5">// DISCOVER_USERS</div>
-            {searchResults.map(user => (
-              <div key={user._id} className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border border-[#111520] mb-0.5">
-                <div className="w-9 h-9 rounded-xl border border-[#1a1f2e] bg-[#0d1117] overflow-hidden flex items-center justify-center shrink-0">
-                  {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-[#484F58] font-bold text-xs">{user.username?.[0]?.toUpperCase()}</span>}
-                </div>
-                <span className="flex-1 text-xs text-[#8B949E] truncate">{user.username?.toLowerCase()}</span>
-                <button onClick={() => handleFriendAction(user._id, "request")} className="bg-[#0d1f2d] border border-[#1a3a6e] text-[#58A6FF] rounded px-2.5 py-1.5 text-[9px] cursor-pointer tracking-wide shrink-0 active:scale-95 transition-transform">+ ADD</button>
-              </div>
-            ))}
-            <div className="text-[9px] text-[#1e2535] px-0.5 py-1">-- end of results --</div>
-          </div>
-        )}
-        {isInSearch && !isSearching && searchResults.length === 0 && activeTab === "dms" && <div className="text-center text-[#1e2535] text-[11px] py-4">no users found</div>}
-
-        {/* DMs */}
+  {/* DMs */}
         {activeTab === "dms" && !isInSearch && displayedUsers.map(user => {
           const uid = String(user._id);
           const isSel = String(selectedUserId) === uid;
@@ -377,6 +359,26 @@ export default function ChatList({
           );
         })}
 
+
+        {/* Discovery */}
+        {isInSearch && searchResults.length > 0 && activeTab === "dms" && (
+          <div className="fade-up">
+            <div className="text-[9px] text-[#2d3440] tracking-widest px-0.5 py-1.5">// DISCOVER_USERS</div>
+            {searchResults.map(user => (
+              <div key={user._id} className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg border border-[#111520] mb-0.5">
+                <div className="w-9 h-9 rounded-xl border border-[#1a1f2e] bg-[#0d1117] overflow-hidden flex items-center justify-center shrink-0">
+                  {user.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : <span className="text-[#484F58] font-bold text-xs">{user.username?.[0]?.toUpperCase()}</span>}
+                </div>
+                <span className="flex-1 text-xs text-[#8B949E] truncate">{user.username?.toLowerCase()}</span>
+                <button onClick={() => handleFriendAction(user._id, "request")} className="bg-[#0d1f2d] border border-[#1a3a6e] text-[#58A6FF] rounded px-2.5 py-1.5 text-[9px] cursor-pointer tracking-wide shrink-0 active:scale-95 transition-transform">+ ADD</button>
+              </div>
+            ))}
+            <div className="text-[9px] text-[#1e2535] px-0.5 py-1">-- end of results --</div>
+          </div>
+        )}
+        {isInSearch && !isSearching && searchResults.length === 0 && activeTab === "dms" && <div className="text-center text-[#1e2535] text-[11px] py-4">no users found</div>}
+
+      
         {/* Groups */}
         {activeTab === "groups" && <>
           {displayedGroups.map(group => {
