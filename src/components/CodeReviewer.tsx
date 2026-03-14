@@ -64,12 +64,7 @@ export default function CodeReviewer({ text }: { text: string }) {
     const audioSrc = text.replace("AUDIO_PACKET:", "");
     
     return (
-      <div style={{ margin: "5px 0" }}>
-        <div style={{ color: "#7EE787", fontSize: "10px", fontFamily: "monospace", opacity: 0.8 }}>
-          // INCOMING_VOICE_NOTE
-        </div>
-        <VoiceMessage src={audioSrc} />
-      </div>
+      <VoiceMessage src={audioSrc} />
     );
   }
 

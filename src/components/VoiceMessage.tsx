@@ -8,16 +8,15 @@ interface VoiceMessageProps {
 export default function VoiceMessage({ src }: VoiceMessageProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0); // Total seconds
-  const [currentTime, setCurrentTime] = useState(0); // Current seconds
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Helper to format seconds into 0:00
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return "0:00";
+    if (isNaN(seconds) || seconds === 0) return "0:00";
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const togglePlay = () => {
@@ -45,77 +44,109 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
   };
 
   return (
-    <div style={{ 
-  background: "#0D1117", 
-  border: "1px solid #30363D", 
-  borderRadius: "6px", 
-  padding: "12px", 
-  display: "flex", 
-  alignItems: "center", 
-  gap: "15px",
-  width: "100%",   // ← was minWidth: "280px"
-  marginTop: "5px"
-}}>
-      <audio 
-        ref={audioRef} 
-        src={src} 
-        onTimeUpdate={handleTimeUpdate} 
+    <div
+      style={{
+        background: "#0D1117",
+        border: "1px solid #30363D",
+        borderRadius: "6px",
+        padding: "10px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        width: "100%",
+        boxSizing: "border-box",
+        overflow: "hidden",
+      }}
+    >
+      <audio
+        ref={audioRef}
+        src={src}
+        onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => {
           setIsPlaying(false);
           setProgress(0);
           setCurrentTime(0);
-        }} 
+        }}
       />
 
-      {/* Terminal Style Play Button */}
-      <button 
+      {/* Play/Pause Button */}
+      <button
         onClick={togglePlay}
         style={{
           background: isPlaying ? "#23863622" : "transparent",
           border: `1px solid ${isPlaying ? "#7EE787" : "#30363D"}`,
           color: "#7EE787",
           borderRadius: "4px",
-          width: "35px",
-          height: "35px",
+          width: "32px",
+          height: "32px",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontFamily: "monospace",
+          fontFamily: "'Fira Code', monospace",
+          fontSize: "12px",
           transition: "all 0.2s ease",
-          flexShrink: 0
+          flexShrink: 0,
         }}
       >
         {isPlaying ? "||" : "▶"}
       </button>
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
-        {/* Animated Waveform */}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: "2px", height: "20px" }}>
-          {[...Array(34)].map((_, i) => {
-            const barThreshold = (i / 34) * 100;
+      {/* Waveform + Status */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "5px",
+        }}
+      >
+        {/* Waveform Bars */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: "2px",
+            height: "18px",
+            overflow: "hidden",
+          }}
+        >
+          {[...Array(30)].map((_, i) => {
+            const barThreshold = (i / 30) * 100;
             const isBarActive = progress >= barThreshold;
             return (
-              <div 
-                key={i} 
-                style={{ 
-                  width: "3px", 
-                  height: isPlaying && isBarActive 
-                    ? `${Math.random() * 80 + 20}%` 
-                    : "20%", 
+              <div
+                key={i}
+                style={{
+                  width: "3px",
+                  flexShrink: 0,
+                  height:
+                    isPlaying && isBarActive
+                      ? `${Math.random() * 80 + 20}%`
+                      : "25%",
                   background: isBarActive ? "#7EE787" : "#30363D",
                   transition: "height 0.15s ease, background 0.1s ease",
-                  borderRadius: "1px"
-                }} 
+                  borderRadius: "1px",
+                }}
               />
             );
           })}
         </div>
-        
-        {/* Status Text & Time Display */}
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", fontFamily: "monospace", color: "#8B949E" }}>
-          <span>{isPlaying ? "STATUS: PLAYING..." : "STATUS: IDLE"}</span>
+
+        {/* Status + Time */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            fontSize: "9px",
+            fontFamily: "'Fira Code', monospace",
+            color: "#8B949E",
+            whiteSpace: "nowrap",
+          }}
+        >
           <span style={{ color: "#7EE787" }}>
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
