@@ -115,6 +115,16 @@ app.prepare().then(() => {
       }
     });
 
+// FRIEND REQUESTS
+socket.on("friend-request-sent", ({ to, from }) => {
+  io.to(to).emit("friend-request-received", { from });
+});
+
+socket.on("friend-request-responded", ({ to, action }) => {
+  io.to(to).emit("friend-request-updated", { action });
+});
+
+    
     // DISCONNECT
     socket.on("disconnect", () => {
       let disconnectedUserId = null;

@@ -127,8 +127,19 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
     socket.on("receive-group-message", handleGroupMessage);
     socket.on("group-updated", handleGroupUpdate);
     socket.on("get-online-users", (ids: string[]) => setOnlineUsers(ids.map(id => String(id))));
+    socket.on("friend-request-received", () => {
+  loadFriendRequests();
+});
+
+socket.on("friend-request-updated", ({ action }: { action: string }) => {
+  loadFriends();
+  loadFriendRequests();
+});
 
     return () => {
+      // In the return cleanup
+socket.off("friend-request-received");
+socket.off("friend-request-updated");
       socket.off("receive-message", handleNewMessage);
       socket.off("receive-group-message", handleGroupMessage);
       socket.off("group-updated", handleGroupUpdate);
@@ -143,16 +154,24 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
     finally { setTimeout(() => setIsRefreshing(false), 500); }
   };
 
-  const handleFriendAction = async (targetId: string, action: string) => {
-    await fetch("/api/friends", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ myId: currentUserId, targetId, action }),
-    });
-    await Promise.all([loadFriends(), loadFriendRequests()]);
-    setSearchResults([]);
-    setSearchTerm("");
-  };
+ const handleFriendAction = async (targetId: string, action: string) => {
+  await fetch("/api/friends", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ myId: currentUserId, targetId, action }),
+  });
+
+  if (action === "request") {
+    socketRef.current?.emit("friend-request-sent", { to: targetId, from: currentUserId });
+  }
+  if (action === "accept" || action === "decline") {
+    socketRef.current?.emit("friend-request-responded", { to: targetId, action });
+  }
+
+  await Promise.all([loadFriends(), loadFriendRequests()]);
+  setSearchResults([]);
+  setSearchTerm("");
+};
 
   const handleLogout = () => {
     setModalConfig({
