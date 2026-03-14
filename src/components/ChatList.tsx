@@ -371,11 +371,7 @@ export default function ChatList({ currentUserId, currentUserName, currentUserAv
                 <div style={{ fontSize: "13px", color: isSelected ? "#8fb8f0" : "#cdd3db", fontWeight: unreadCount > 0 ? "600" : "400", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                   {user.username?.toLowerCase()}
                 </div>
-                {user.lastMessage && (
-                  <div style={{ fontSize: "10px", color: "#2d3440", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: "1px" }}>
-                    {user.lastMessage.substring(0, 30)}...
-                  </div>
-                )}
+                
               </div>
               {unreadCount > 0 && (
                 <div style={{ background: "#1a3a6e", color: "#58A6FF", minWidth: "18px", height: "18px", padding: "0 5px", fontSize: "10px", fontWeight: "bold", borderRadius: "5px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
