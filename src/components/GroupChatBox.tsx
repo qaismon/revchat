@@ -22,6 +22,7 @@ interface GroupChatBoxProps {
   isAdmin: boolean;
   onMembersUpdated?: (members: Member[]) => void;
   onGroupDeleted?: () => void;
+  onBack?: () => void;
 }
 
 function FileMessage({ content }: { content: string }) {
@@ -58,7 +59,7 @@ function FileMessage({ content }: { content: string }) {
 }
 
 export default function GroupChatBox({
-  userId, userAvatar, userName, groupId, groupName, members, isAdmin, onMembersUpdated, onGroupDeleted,
+  userId, userAvatar, userName, groupId, groupName, members, isAdmin, onMembersUpdated, onGroupDeleted, onBack,
 }: GroupChatBoxProps) {
   const socketRef = useSocket(userId);
   const [messages, setMessages] = useState<any[]>([]);
