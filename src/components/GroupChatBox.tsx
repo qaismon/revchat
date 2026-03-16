@@ -22,6 +22,8 @@ interface GroupChatBoxProps {
   isAdmin: boolean;
   onMembersUpdated?: (members: Member[]) => void;
   onGroupDeleted?: () => void;
+  onBack?: () => void ;
+
 }
 
 export default function GroupChatBox({
