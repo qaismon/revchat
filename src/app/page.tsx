@@ -5,14 +5,16 @@ import Link from "next/link";
 const MATRIX_CHARS = "アイウエオカキクケコサシスセソタチツテトナニヌネノ01";
 
 function MatrixColumn({ delay, duration, left }: { delay: number; duration: number; left: number }) {
+  const [chars, setChars] = useState<string[]>([]);
+  useEffect(() => {
+    setChars(Array.from({ length: 30 }, () => MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]));
+  }, []);
   return (
     <div
       className="absolute top-0 text-[10px] leading-[14px] text-[#7EE787] opacity-[0.07] font-mono select-none pointer-events-none"
       style={{ left: `${left}%`, animation: `matrixFall ${duration}s ${delay}s linear infinite` }}
     >
-      {Array.from({ length: 30 }, (_, i) => (
-        <div key={i}>{MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]}</div>
-      ))}
+      {chars.map((c, i) => <div key={i}>{c}</div>)}
     </div>
   );
 }
@@ -118,11 +120,14 @@ export default function Home() {
     return () => obs.disconnect();
   }, []);
 
-  const cols = Array.from({ length: 20 }, (_, i) => ({
-    delay: Math.random() * 5,
-    duration: 8 + Math.random() * 10,
-    left: i * 5 + Math.random() * 4,
-  }));
+  const [cols, setCols] = useState<{delay:number;duration:number;left:number}[]>([]);
+  useEffect(() => {
+    setCols(Array.from({ length: 20 }, (_, i) => ({
+      delay: Math.random() * 5,
+      duration: 8 + Math.random() * 10,
+      left: i * 5 + Math.random() * 4,
+    })));
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#07090c] font-mono text-[#C9D1D9] overflow-x-hidden">
@@ -194,9 +199,7 @@ export default function Home() {
       {/* Hero */}
       <section className="relative z-10 flex flex-col items-center justify-center min-h-[90vh] px-6 text-center scanline">
         <div className="fade-up" style={{ animationDelay: "0.1s", opacity: 0 }}>
-          <div className="text-[11px] text-[#484F58] tracking-[4px] mb-6 uppercase">
-            ❯ INITIALIZING_SESSION...
-          </div>
+          
           <h1 className="text-5xl sm:text-7xl font-bold tracking-tight glow-text text-[#7EE787] mb-2">
             {typed}<span className={`${cursorVisible ? "opacity-100" : "opacity-0"} transition-opacity`}>█</span>
           </h1>
@@ -207,7 +210,7 @@ export default function Home() {
 
         <div className="fade-up mt-8 max-w-xl" style={{ animationDelay: "0.4s", opacity: 0 }}>
           <p className="text-[#8B949E] text-sm leading-relaxed">
-            A terminal-aesthetic chat app built for developers. End-to-end encrypted DMs,
+            A chat app built for developers. End-to-end encrypted DMs,
             real-time group channels, voice messages, file sharing, and an AI assistant
             that understands your code.
           </p>
@@ -332,7 +335,7 @@ export default function Home() {
 
       {/* Infrastructure badges */}
       <section
-        ref={el => { sectionRefs.current[5] = el; }}
+        ref={el => { sectionRefs.current[5] = el as HTMLDivElement | null; }}
         className={`relative z-10 px-6 py-16 max-w-4xl mx-auto text-center transition-all duration-700 ${visibleSections.includes(5) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
       >
         <div className="text-[10px] text-[#484F58] tracking-[3px] mb-6">// INFRASTRUCTURE</div>
@@ -347,7 +350,7 @@ export default function Home() {
 
       {/* CTA */}
       <section
-        ref={el => { sectionRefs.current[6] = el; }}
+        ref={el => { sectionRefs.current[6] = el as HTMLDivElement | null; }}
         className={`relative z-10 px-6 py-24 text-center transition-all duration-700 ${visibleSections.includes(6) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
       >
         <div className="max-w-lg mx-auto">
