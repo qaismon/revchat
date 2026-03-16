@@ -6,6 +6,7 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import ConfirmModal from "./ConfirmModal";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import AIMessage from './AIMessage';
+import VoiceMessage from './VoiceMessage';
 
 interface Member {
   _id: string;
@@ -22,8 +23,7 @@ interface GroupChatBoxProps {
   isAdmin: boolean;
   onMembersUpdated?: (members: Member[]) => void;
   onGroupDeleted?: () => void;
-  onBack?: () => void ;
-
+  onBack?: () => void;
 }
 
 export default function GroupChatBox({
@@ -53,6 +53,13 @@ export default function GroupChatBox({
   const messagesEndRef = { current: null as HTMLDivElement | null };
   const { isRecording, startRecording, stopRecording } = useAudioRecorder();
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [draggedFile, setDraggedFile] = useState<File | null>(null);
+  const [dragPreviewUrl, setDragPreviewUrl] = useState<string | null>(null);
+  const [dragCaption, setDragCaption] = useState("");
 
   // --- AI / EDITOR STATE ---
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -258,6 +265,48 @@ export default function GroupChatBox({
     }
   };
 
+
+  // --- FILE SHARING ---
+  const handleFileSend = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { alert("FILE_TOO_LARGE: Max size is 15MB"); if (fileInputRef.current) fileInputRef.current.value = ""; return; }
+    setIsUploadingFile(true); setUploadProgress(0);
+    try {
+      const formData = new FormData(); formData.append("file", file);
+      await new Promise<void>((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)); };
+        xhr.onload = async () => { const data = JSON.parse(xhr.responseText); if (xhr.status >= 200 && xhr.status < 300 && data.url) await sendMessage(`FILE_PACKET:${data.url}|${file.name}|${file.type}`); resolve(); };
+        xhr.onerror = () => resolve(); xhr.open("POST", "/api/upload-file"); xhr.send(formData);
+      });
+    } catch (err) { console.error("File upload error:", err); }
+    finally { setIsUploadingFile(false); setUploadProgress(0); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); setDragOver(false);
+    const file = e.dataTransfer.files?.[0]; if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { alert("FILE_TOO_LARGE: Max size is 15MB"); return; }
+    setDraggedFile(file);
+    if (file.type.startsWith("image/")) setDragPreviewUrl(URL.createObjectURL(file)); else setDragPreviewUrl(null);
+  };
+
+  const handleDragPreviewSend = async () => {
+    if (!draggedFile) return;
+    setIsUploadingFile(true); setUploadProgress(0); setDraggedFile(null); setDragPreviewUrl(null);
+    try {
+      const formData = new FormData(); formData.append("file", draggedFile);
+      const caption = dragCaption.trim(); setDragCaption("");
+      await new Promise<void>((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)); };
+        xhr.onload = async () => { const data = JSON.parse(xhr.responseText); if (xhr.status >= 200 && xhr.status < 300 && data.url) { const p = `FILE_PACKET:${data.url}|${draggedFile.name}|${draggedFile.type}`; await sendMessage(caption ? `${p}\n${caption}` : p); } resolve(); };
+        xhr.onerror = () => resolve(); xhr.open("POST", "/api/upload-file"); xhr.send(formData);
+      });
+    } catch (err) { console.error("Drag upload error:", err); }
+    finally { setIsUploadingFile(false); setUploadProgress(0); }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
     socketRef.current?.emit("group-typing", { groupId, from: userId, fromName: userName, isTyping: true });
@@ -336,6 +385,31 @@ export default function GroupChatBox({
 
   const onEmojiClick = (emojiData: any) => setText((prev) => prev + emojiData.emoji); 
 
+
+  function FileMessage({ content }: { content: string }) {
+    const lines = content.split("\n"); const packetLine = lines[0]; const caption = lines.slice(1).join("\n").trim();
+    const raw = packetLine.replace("FILE_PACKET:", ""); const parts = raw.split("|");
+    const url = parts[0] ?? ""; const name = parts[1] ?? "file"; const type = parts[2] ?? "";
+    if (type.startsWith("image/")) {
+      return (
+        <div>
+          <img src={url} alt={name} onClick={() => window.open(url, "_blank")} className="rounded border border-[#30363D] cursor-pointer block object-cover" style={{ width: "240px", height: "auto", maxWidth: "100%" }} />
+          <span className="text-[10px] text-[#484F58] mt-1 block">{name}</span>
+          {caption && <span className="text-[13px] text-[#C9D1D9] mt-1 block">{caption}</span>}
+        </div>
+      );
+    }
+    return (
+      <div style={{ width: "240px" }}>
+        <div className="px-3 py-2 bg-[#0D1117] border border-[#30363D] rounded">
+          <span className="text-[#a78bfa] text-xs">{type === "application/pdf" ? "[PDF] " : "[FILE] "}</span>
+          <span className="text-[#a78bfa] text-xs cursor-pointer underline" onClick={() => window.open(url, "_blank")}>{name}</span>
+        </div>
+        {caption && <div className="text-[13px] text-[#C9D1D9] mt-1">{caption}</div>}
+      </div>
+    );
+  }
+
   const displayedMessages = isGrepActive
     ? messages.filter((m) => m.content?.toLowerCase().includes(grepQuery.toLowerCase()))
     : messages;
@@ -412,7 +486,14 @@ export default function GroupChatBox({
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
         {/* Messages */}
-        <div className="group-scroll" style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div
+          style={{ flex: 1, position: "relative", overflow: "hidden", outline: dragOver ? "2px dashed #6e40c9" : "2px solid transparent" }}
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          {dragOver && <div style={{ position: "absolute", inset: 0, background: "#6e40c908", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ color: "#a78bfa", fontSize: "13px" }}>// DROP_FILE_HERE</span></div>}
+        <div className="group-scroll" style={{ height: "100%", overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
           {displayedMessages.length === 0 && !isGrepActive && (
             <div style={{ color: "#484F58", textAlign: "center", marginTop: "40px", fontSize: "12px" }}>
               <div style={{ marginBottom: "8px" }}>👥</div>
@@ -428,6 +509,8 @@ export default function GroupChatBox({
             const isMe = String(m.senderId) === userId;
             const msgId = m._id || m.createdAt;
             const isAI = m.senderId === "AI_BOT" || m.content?.startsWith("### 🧠 LOGIC_EXPLAINED");
+            const isAudio = m.content?.startsWith("AUDIO_PACKET:");
+            const isFile = m.content?.startsWith("FILE_PACKET:");
 
             return (
               <div key={msgId} style={{ alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"), width: isAI ? "95%" : "auto", maxWidth: "80%" }}>
@@ -440,7 +523,7 @@ export default function GroupChatBox({
 
                 <div style={{
                   borderRadius: "12px",
-                  padding: isAI ? "12px 16px" : "10px 14px",
+                  padding: isAI ? "12px 16px" : (isAudio || isFile) ? "8px" : "10px 14px",
                   border: isAI ? "1px solid #1a2a4a" : (isMe ? "1px solid #6e40c9" : "1px solid #30363D"),
                   background: isAI ? "#060b14" : (isMe ? "#6e40c922" : "#161B22"),
                   color: "#C9D1D9",
@@ -449,13 +532,17 @@ export default function GroupChatBox({
                   maxWidth: isAI ? "min(95%, 560px)" : undefined
                 }}>
                   <div style={{ fontSize: "14px" }}>
-                    {!isAI && (
+                    {!isAI && !isAudio && !isFile && (
                       <span style={{ color: isMe ? "#a78bfa" : "#58A6FF", marginRight: "8px" }}>
                         {isMe ? ">" : "$"}
                       </span>
                     )}
                     {isAI ? (
                       <AIMessage content={m.content} />
+                    ) : isAudio ? (
+                      <VoiceMessage src={m.content.replace("AUDIO_PACKET:", "")} />
+                    ) : isFile ? (
+                      <FileMessage content={m.content} />
                     ) : (
                       <CodeReviewer text={m.content} />
                     )}
@@ -495,6 +582,7 @@ export default function GroupChatBox({
             );
           })}
           <div ref={(el) => { (messagesEndRef as any).current = el; }} />
+        </div>
         </div>
 
         {/* Members Panel */}
@@ -602,6 +690,13 @@ export default function GroupChatBox({
           )}
 
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf,*/*" style={{ display: "none" }} onChange={handleFileSend} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={isUploadingFile}
+              style={{ background: isUploadingFile ? "rgba(110,64,201,0.1)" : "transparent", border: isUploadingFile ? "1px solid #6e40c9" : "1px solid transparent", color: isUploadingFile ? "#a78bfa" : "#8B949E", cursor: isUploadingFile ? "not-allowed" : "pointer", borderRadius: "4px", padding: "6px", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", outline: "none" }}
+              title={isUploadingFile ? "UPLOADING..." : "ATTACH_FILE"}>
+              {isUploadingFile ? <span style={{ fontSize: "9px", fontWeight: "bold" }}>{uploadProgress}%</span>
+                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>}
+            </button>
             <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}
               style={{ background: showEmojiPicker ? "rgba(202, 172, 3, 0.1)" : "transparent", border: showEmojiPicker ? "1px solid #caac03" : "1px solid transparent", color: "#caac03", cursor: "pointer", borderRadius: "4px", padding: "6px", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s ease-in-out", outline: "none" }}
               onMouseEnter={(e) => { if (!showEmojiPicker) e.currentTarget.style.background = "#30363D" }}
@@ -639,6 +734,23 @@ export default function GroupChatBox({
         </div>
       </div>
 
+      {draggedFile && (
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px" }}>
+          <div style={{ background: "#161B22", border: "1px solid #6e40c9", borderRadius: "8px", padding: "20px", width: "320px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#a78bfa", fontSize: "11px", fontFamily: "'Fira Code', monospace" }}>// ATTACH_FILE</span>
+              <button onClick={() => { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); }} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", fontSize: "14px" }}>✕</button>
+            </div>
+            {dragPreviewUrl
+              ? <img src={dragPreviewUrl} alt="preview" style={{ width: "100%", borderRadius: "4px", border: "1px solid #30363D", maxHeight: "220px", objectFit: "contain" }} />
+              : <div style={{ padding: "20px", background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", textAlign: "center" }}><div style={{ fontSize: "24px", marginBottom: "8px" }}>📎</div><div style={{ color: "#8B949E", fontSize: "12px", wordBreak: "break-all" }}>{draggedFile.name}</div><div style={{ color: "#484F58", fontSize: "10px", marginTop: "4px" }}>{(draggedFile.size / 1024).toFixed(1)} KB</div></div>}
+            <input autoFocus placeholder="Add a caption... (optional)" value={dragCaption} onChange={e => setDragCaption(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleDragPreviewSend(); if (e.key === "Escape") { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); } }}
+              style={{ background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", padding: "8px 12px", color: "#C9D1D9", fontSize: "13px", fontFamily: "'Fira Code', monospace", outline: "none" }} />
+            <button onClick={handleDragPreviewSend} style={{ background: "#6e40c922", color: "#a78bfa", border: "1px solid #6e40c9", borderRadius: "4px", padding: "10px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold" }}>SEND_FILE</button>
+          </div>
+        </div>
+      )}
       <ConfirmModal
         isOpen={!!modalConfig}
         title={modalConfig?.title}
