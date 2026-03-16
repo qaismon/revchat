@@ -5,6 +5,7 @@ import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import ConfirmModal from "./ConfirmModal";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
+import AIMessage from './AIMessage';
 
 interface Member {
   _id: string;
@@ -21,7 +22,6 @@ interface GroupChatBoxProps {
   isAdmin: boolean;
   onMembersUpdated?: (members: Member[]) => void;
   onGroupDeleted?: () => void;
-  onBack?: () => void;
 }
 
 export default function GroupChatBox({
@@ -34,6 +34,7 @@ export default function GroupChatBox({
   isAdmin,
   onMembersUpdated,
   onGroupDeleted,
+  onBack,
 }: GroupChatBoxProps) {
   const socketRef = useSocket(userId);
   const [messages, setMessages] = useState<any[]>([]);
@@ -356,6 +357,11 @@ export default function GroupChatBox({
       {/* Header */}
       <div style={{ background: "#161B22", padding: "12px 16px", borderBottom: "2px solid #6e40c9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {onBack && (
+            <button onClick={onBack} className="md:hidden p-2 text-[#484F58] hover:text-[#C9D1D9] mr-1">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+          )}
           <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#6e40c933", border: "1px solid #6e40c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>👥</div>
           <div>
             <div style={{ fontWeight: "bold", color: "#C9D1D9", fontSize: "14px" }}>
@@ -431,31 +437,23 @@ export default function GroupChatBox({
                 )}
 
                 <div style={{
-                  borderRadius: "4px",
-                  padding: "10px 14px",
-                  border: isAI ? "1px double #58A6FF" : (isMe ? "1px solid #6e40c9" : "1px solid #30363D"),
-                  background: isAI ? "#0d1117" : (isMe ? "#6e40c922" : "#161B22"),
+                  borderRadius: "12px",
+                  padding: isAI ? "12px 16px" : "10px 14px",
+                  border: isAI ? "1px solid #1a2a4a" : (isMe ? "1px solid #6e40c9" : "1px solid #30363D"),
+                  background: isAI ? "#060b14" : (isMe ? "#6e40c922" : "#161B22"),
                   color: "#C9D1D9",
-                  boxShadow: isAI ? "0 0 15px rgba(58, 166, 255, 0.05)" : "none",
-                  position: "relative"
+                  boxShadow: isAI ? "0 0 24px rgba(88,166,255,0.06), inset 0 1px 0 #1a2a4a44" : "none",
+                  position: "relative",
+                  maxWidth: isAI ? "min(95%, 560px)" : undefined
                 }}>
-                  {/* AI system tag */}
-                  {isAI && (
-                    <div style={{ fontSize: '9px', color: '#58A6FF', marginBottom: '8px', borderBottom: '1px solid #58A6FF33', paddingBottom: '4px' }}>
-                      [SYSTEM_DIAGNOSTIC_REPORT] // SOURCE: NEURAL_ENGINE
-                    </div>
-                  )}
-
                   <div style={{ fontSize: "14px" }}>
-                    <span style={{ color: isAI ? "#58A6FF" : (isMe ? "#a78bfa" : "#58A6FF"), marginRight: "8px" }}>
-                      {isAI ? "⚡" : (isMe ? ">" : "$")}
-                    </span>
+                    {!isAI && (
+                      <span style={{ color: isMe ? "#a78bfa" : "#58A6FF", marginRight: "8px" }}>
+                        {isMe ? ">" : "$"}
+                      </span>
+                    )}
                     {isAI ? (
-                      <div style={{ lineHeight: "1.6" }}>
-                        <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "'Fira Code', monospace", fontSize: '13px', color: '#ADC6FF' }}>
-                          {m.content?.replace("### 🧠 LOGIC_EXPLAINED", "").trim()}
-                        </div>
-                      </div>
+                      <AIMessage content={m.content} />
                     ) : (
                       <CodeReviewer text={m.content} />
                     )}

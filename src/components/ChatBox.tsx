@@ -11,7 +11,7 @@ import ParticlesBg from "./chatBackgrounds/Particlesbg";
 import NeuralBg from "./chatBackgrounds/NeuralBg";
 import AskAIModal from "./AskAIModal";
 import FreeAIChat from "./FreeAIChat";
-import AIMessage from "./AiMessage";
+import AIMessage from "./AIMessage";
 
 // --- E2EE CRYPTO HELPERS ---
 async function importPublicKey(pem: string) {
