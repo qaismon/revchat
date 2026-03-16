@@ -11,6 +11,7 @@ import ParticlesBg from "./chatBackgrounds/Particlesbg";
 import NeuralBg from "./chatBackgrounds/NeuralBg";
 import AskAIModal from "./AskAIModal";
 import FreeAIChat from "./FreeAIChat";
+import AIMessage from "./AIMessage";
 
 // --- E2EE CRYPTO HELPERS ---
 async function importPublicKey(pem: string) {
@@ -69,8 +70,7 @@ function FileMessage({ content }: { content: string }) {
   );
 }
 
-export default function ChatBox({ userId, peerId, onBack }: { userId: string; peerId: string; onBack?: () => void }
-) {
+export default function ChatBox({ userId, peerId }: { userId: string; peerId: string }) {
   const socketRef = useSocket(userId);
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
@@ -329,13 +329,6 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-[#161B22] border-b-2 border-[#30363D] shrink-0">
         <div className="flex items-center gap-3">
-          {onBack && (
-  <button onClick={onBack} className="md:hidden p-2 text-[#484F58] hover:text-[#C9D1D9] mr-1">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 18 9 12 15 6"/>
-    </svg>
-  </button>
-)}
           <div className="w-8 h-8 rounded border border-[#30363D] bg-[#0D1117] overflow-hidden shrink-0">
             {peerAvatar && <img src={peerAvatar} className="w-full h-full object-cover" alt="" />}
           </div>
@@ -404,29 +397,27 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
                   {/* Bubble */}
                   <div onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setAiContextMenu({ x: e.clientX, y: e.clientY, msgId, content: displayContent }); }}
                     className={[
-                      "rounded-lg",
-                      isAI ? "px-4 py-3 border border-double border-[#58A6FF] bg-[#0d1117] text-[#C9D1D9]" :
+                      "rounded-xl",
+                      isAI ? "px-4 py-3 border border-[#1a2a4a] bg-[#060b14]" :
                         (isAudio || isFile) ? `p-2 border ${isMe ? "border-[#238636] bg-[#23863622]" : "border-[#30363D] bg-[#161b2286]"}` :
                           `px-4 py-3 border ${isMe ? "border-[#238636] bg-[#23863622] text-[#7EE787]" : "border-[#30363D] bg-[#161b2286] text-[#C9D1D9]"}`
                     ].join(" ")}
-                    style={{ maxWidth: isAI ? "95%" : "min(85vw, 360px)" }}>
+                    style={{ maxWidth: isAI ? "min(95%, 560px)" : "min(85vw, 360px)", boxShadow: isAI ? "0 0 24px rgba(88,166,255,0.06), inset 0 1px 0 #1a2a4a44" : "none" }}>
 
-                    {isAI && <div className="text-[9px] text-[#58A6FF] mb-2 pb-1 border-b border-[#58A6FF33]">[SYSTEM_DIAGNOSTIC_REPORT] // SOURCE: NEURAL_ENGINE</div>}
+
 
                     <div className="text-sm">
-                      {/* Prompt prefix — only for non-audio/file */}
-                      {!isAudio && !isFile && !m.deleted && (
-                        <span className={`mr-2 ${isAI ? "text-[#58A6FF]" : isMe ? "text-[#7EE787]" : "text-[#58A6FF]"}`}>
-                          {isAI ? "⚡" : isMe ? ">" : "$"}
+                      {/* Prompt prefix — only for non-audio/file text messages */}
+                      {!isAI && !isAudio && !isFile && !m.deleted && (
+                        <span className={`mr-2 ${isMe ? "text-[#7EE787]" : "text-[#58A6FF]"}`}>
+                          {isMe ? ">" : "$"}
                         </span>
                       )}
 
                       {m.deleted ? (
                         <span className="text-[#484F58] text-xs italic">// message_deleted</span>
                       ) : isAI ? (
-                        <span className="whitespace-pre-wrap break-words text-[13px] text-[#ADC6FF]">
-                          {displayContent.replace("### 🧠 LOGIC_EXPLAINED", "").trim()}
-                        </span>
+                        <AIMessage content={displayContent} />
                       ) : isAudio ? (
                         <VoiceMessage src={displayContent.replace("AUDIO_PACKET:", "")} />
                       ) : isFile ? (
@@ -540,7 +531,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
             className="flex-1 bg-transparent border-none outline-none text-[#C9D1D9] font-mono text-sm resize-none py-2 px-1 overflow-y-auto"
             value={text} onChange={handleInputChange}
             onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-            placeholder="" />
+            placeholder="type_message_here..." />
 
           {showEmojiPicker && (
             <div className="absolute bottom-full right-0 mb-3 z-[1000] shadow-2xl">
