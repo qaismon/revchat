@@ -11,9 +11,12 @@ let onlineUsers = new Map(); // userId -> socketId
 app.prepare().then(() => {
   const server = createServer((req, res) => handle(req, res));
 
-  const io = new Server(server, {
-    cors: { origin: "*" },
-  });
+ const io = new Server(server, {
+  cors: {
+    origin: process.env.NEXT_PUBLIC_BASE_URL,
+    methods: ["GET", "POST"],
+  },
+});
 
   io.on("connection", (socket) => {
     console.log("New socket connected:", socket.id);

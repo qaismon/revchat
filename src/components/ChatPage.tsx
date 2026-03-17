@@ -5,6 +5,7 @@ import ChatBox from "./ChatBox";
 
 export default function ChatPage({ userId }: { userId: string }) {
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
+  const currentUserName = "Guest"; // temporary
 
   return (
     <div style={{ 
@@ -20,11 +21,13 @@ export default function ChatPage({ userId }: { userId: string }) {
         borderRight: "1px solid #30363D", // Darker border to match terminal theme
         background: "#07090c" 
       }}>
-        <ChatList 
-          currentUserId={userId} 
-          onSelect={setSelectedPeer} 
-          selectedUserId={selectedPeer} 
-        />
+       <ChatList 
+  currentUserId={userId} 
+  onSelect={setSelectedPeer} 
+  onSelectGroup={() => {}}
+currentUserName={"guest"}
+  selectedUserId={selectedPeer ?? undefined}
+/>
       </div>
 
       {/* Chat Area - Full Height and Width */}
