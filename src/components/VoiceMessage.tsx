@@ -12,13 +12,12 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds === 0) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
+const formatTime = (seconds: number) => {
+  if (!seconds || !isFinite(seconds) || isNaN(seconds)) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
   const togglePlay = () => {
     if (isPlaying) {
       audioRef.current?.pause();
@@ -37,11 +36,11 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
     }
   };
 
-  const handleLoadedMetadata = () => {
-    if (audioRef.current) {
-      setDuration(audioRef.current.duration);
-    }
-  };
+ const handleLoadedMetadata = () => {
+  if (!audioRef.current) return;
+  const d = audioRef.current.duration;
+  if (d && isFinite(d)) setDuration(d);
+};
 
   return (
     <div
@@ -62,6 +61,12 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
         ref={audioRef}
         src={src}
         onTimeUpdate={handleTimeUpdate}
+        onDurationChange={() => {
+  if (audioRef.current) {
+    const d = audioRef.current.duration;
+    if (d && isFinite(d)) setDuration(d);
+  }
+}}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={() => {
           setIsPlaying(false);
