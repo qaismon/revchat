@@ -11,7 +11,7 @@ useEffect(() => {
   if (!userId) return;
 
   if (!socket) {
-    socket = io("http://localhost:3000", {
+    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
       transports: ["websocket"],
       reconnection: true,
     });
