@@ -528,7 +528,7 @@ const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type })
                 const sameGrp=prev&&prev.senderId===m.senderId&&!isAI;
                 return (
                   <div key={mid} className={`flex ${isAI?"justify-center":isMe?"justify-end":"justify-start"} ${sameGrp?"mt-0.5":"mt-3"} msg-in`}>
-                    <div className="relative group" style={{maxWidth:isAI?"min(95vw,580px)":"min(82vw,360px)"}}>
+                    <div className="relative group" style={{maxWidth: isAI ? "min(95vw,580px)" : (dc.includes("```") ? "min(92vw,600px)" : "min(82vw,360px)")}}>
                       {/* {!isMe&&!isAI&&!sameGrp&&(
                         <div className="absolute -left-8 bottom-0 w-6 h-6 rounded-xl overflow-hidden" style={{border:"1px solid #1a2035"}}>
                           {peerAvatar?<img src={peerAvatar} className="w-full h-full object-cover" alt=""/>:<div className="w-full h-full flex items-center justify-center text-[9px] font-bold" style={{background:"#1a2035",color:"#58A6FF"}}>{peerName?.[0]?.toUpperCase()}</div>}
