@@ -25,6 +25,7 @@ interface ChatListProps {
   onSelectGroup: (group: Group | null) => void;
   selectedUserId?: string;
   selectedGroupId?: string;
+  onClearUnread?: (userId: string) => void;
 }
 
 export default function ChatList({
@@ -95,6 +96,13 @@ export default function ChatList({
       console.error("Failed to load groups:", err);
     }
   }, [currentUserId]);
+
+  //read count change when opened from noti
+  useEffect(() => {
+  if (selectedUserId) {
+    setUnreadCounts(p => ({ ...p, [selectedUserId]: 0 }));
+  }
+}, [selectedUserId]);
 
   // Initial Load
   useEffect(() => {

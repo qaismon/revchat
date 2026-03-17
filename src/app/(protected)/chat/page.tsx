@@ -148,19 +148,19 @@ export default function ChatPage() {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const navigateFromToast = useCallback((toast: Toast) => {
-    if (toast.isGroup) {
-      const group = groupsRef.current.find(g => String(g._id) === toast.targetId) || toast.rawGroup;
-      if (group) {
-        setActiveGroup(group);
-        setPeerId(null);
-      }
-    } else {
-      setPeerId(toast.targetId);
-      setActiveGroup(null);
+ const navigateFromToast = useCallback((toast: Toast) => {
+  if (toast.isGroup) {
+    const group = groupsRef.current.find(g => String(g._id) === toast.targetId) || toast.rawGroup;
+    if (group) {
+      setActiveGroup(group);
+      setPeerId(null);
     }
-    dismissToast(toast.id);
-  }, [dismissToast]);
+  } else {
+    handleSelectDM(toast.targetId); // ← change this from setPeerId(toast.targetId)
+    setActiveGroup(null);
+  }
+  dismissToast(toast.id);
+}, [dismissToast, handleSelectDM]);
 
   const handleSelectDM = useCallback((id: string) => { 
     setPeerId(id); 
