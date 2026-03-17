@@ -19,7 +19,7 @@ export function useAudioRecorder() {
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(250);
       setIsRecording(true);
     } catch (err) {
       console.error("Microphone access denied:", err);

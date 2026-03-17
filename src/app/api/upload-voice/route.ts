@@ -10,8 +10,9 @@ export async function POST(req: NextRequest) {
 
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    const response = await utapi.uploadFiles(file);
-
+const response = await utapi.uploadFiles(
+  new File([await file.arrayBuffer()], file.name || `voice-${Date.now()}.webm`, { type: file.type || "audio/webm" })
+);
     const url = response?.data?.ufsUrl ?? response?.data?.url;
     if (!url) return NextResponse.json({ error: "Upload failed" }, { status: 500 });
 
