@@ -18,14 +18,21 @@ const formatTime = (seconds: number) => {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
-  const togglePlay = () => {
+ const togglePlay = async () => {
+  if (!audioRef.current) return;
+  try {
     if (isPlaying) {
-      audioRef.current?.pause();
+      audioRef.current.pause();
+      setIsPlaying(false);
     } else {
-      audioRef.current?.play();
+      await audioRef.current.play();
+      setIsPlaying(true);
     }
-    setIsPlaying(!isPlaying);
-  };
+  } catch (err) {
+    console.error("Playback error:", err);
+    setIsPlaying(false);
+  }
+};
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -36,6 +43,8 @@ const formatTime = (seconds: number) => {
     }
   };
 
+
+  
  const handleLoadedMetadata = () => {
   if (!audioRef.current) return;
   const d = audioRef.current.duration;

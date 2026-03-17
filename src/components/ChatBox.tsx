@@ -233,8 +233,8 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   if (!blob) return;
   setIsUploadingVoice(true);
   try {
-    const file = new File([blob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
-    const fd = new FormData();
+const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm";
+const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });    const fd = new FormData();
     fd.append("file", file);
     const url = await new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -699,7 +699,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
           <div className="fu flex items-center gap-3 mb-2 px-3 py-2 rounded-xl" style={{background:"#1a0808",border:"1px solid #3a1010"}}>
             <div className="w-2 h-2 rounded-full bg-[#ff3333]" style={{animation:"typingBounce 0.8s ease-in-out infinite"}}/>
             <span className="text-[11px] font-bold text-[#ff3333]">REC {fmtRec(recordingTime)}</span>
-            <span className="text-[10px] ml-auto text-[#484F58]">release to send</span>
+            <span className="text-[10px] ml-auto text-[#484F58]">stop to send</span>
           </div>
         )}
 
@@ -726,7 +726,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
             <button onClick={()=>setShowEmojiPicker(!showEmojiPicker)} className="btn w-8 h-8 rounded-xl flex items-center justify-center" style={{color:showEmojiPicker?"#caac03":"#484F58",border:`1px solid ${showEmojiPicker?"#caac03":"transparent"}`,background:showEmojiPicker?"#1a1500":"transparent"}} title="Emoji">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
             </button>
-            <button onClick={() => isRecordingRef.current ? handleVoiceSend() : startRecording()} disabled={isUploadingVoice} className="btn w-8 h-8 rounded-xl flex items-center justify-center" style={{color:isRecording?"#ff3333":isUploadingVoice?"#58A6FF":"#484F58",border:`1px solid ${isRecording?"#3a1010":isUploadingVoice?"#1a3a6e":"transparent"}`,background:isRecording?"#1a0808":isUploadingVoice?"#0a1628":"transparent"}} title="Hold to record">
+            <button onClick={() => isRecordingRef.current ? handleVoiceSend() : startRecording()} disabled={isUploadingVoice} className="btn w-8 h-8 rounded-xl flex items-center justify-center" style={{color:isRecording?"#ff3333":isUploadingVoice?"#58A6FF":"#484F58",border:`1px solid ${isRecording?"#3a1010":isUploadingVoice?"#1a3a6e":"transparent"}`,background:isRecording?"#1a0808":isUploadingVoice?"#0a1628":"transparent"}}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </button>
             <button onClick={()=>sendMessage()} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:text.trim()?"#0f2e1a":"#0a0c10",color:text.trim()?"#7EE787":"#30363d",border:`1px solid ${text.trim()?"#238636":"#1a1f2e"}`}}>
