@@ -6,7 +6,7 @@ import Group from "@/models/Group";
 import GroupMessage from "@/models/GroupMessage";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3000");
+const socket = io(process.env.NEXT_PUBLIC_BASE_URL);
 
 function getUserFromRequest(req: Request): string | null {
   const cookie = req.headers.get("cookie");
