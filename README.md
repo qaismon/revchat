@@ -26,6 +26,7 @@ Live link: https://revchat.onrender.com
 ```
 [✓] RSA-OAEP + AES-GCM hybrid encryption (E2EE)
 [✓] Real-time messaging via Socket.io
+[✓] Group chats
 [✓] Voice messages with inline audio player
 [✓] File & image sharing (up to 15MB)
 [✓] Read receipts (sending → sent → delivered → seen)
