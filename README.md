@@ -17,6 +17,8 @@
 
 RevChat is a **fully end-to-end encrypted** chat application built with a deliberate terminal/hacker aesthetic. Every message is encrypted client-side before it touches the wire — the server never sees your plaintext. Ever.
 
+
+Live link: https://revchat.onrender.com
 ---
 
 ## `$ cat features.txt`
@@ -24,6 +26,7 @@ RevChat is a **fully end-to-end encrypted** chat application built with a delibe
 ```
 [✓] RSA-OAEP + AES-GCM hybrid encryption (E2EE)
 [✓] Real-time messaging via Socket.io
+[✓] Group chats
 [✓] Voice messages with inline audio player
 [✓] File & image sharing (up to 15MB)
 [✓] Read receipts (sending → sent → delivered → seen)
