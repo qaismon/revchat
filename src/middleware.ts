@@ -8,6 +8,7 @@ export function middleware(req: NextRequest) {
 const isApiRoute = path.startsWith("/api");
 const isAuthPage = path.startsWith("/login") || path.startsWith("/register") || path.startsWith("/reset-password");
 const isPublicApi = 
+  path==="/" ||
   path.startsWith("/api/login") || 
   path.startsWith("/api/register") || 
   path.startsWith("/api/upload-avatar") || 
@@ -30,7 +31,7 @@ const isPublicApi =
   }
 
   
-  if (!token && !isAuthPage) {
+  if (!token && !isPublicApi) {
     if (path === "/unauthorized") return NextResponse.next();
     return NextResponse.redirect(new URL("/login", req.url));
   }
