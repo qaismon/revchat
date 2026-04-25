@@ -234,7 +234,8 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   setIsUploadingVoice(true);
   try {
 const ext = blob.type.includes("mp4") ? "mp4" : blob.type.includes("ogg") ? "ogg" : "webm";
-const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });    const fd = new FormData();
+const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });    
+const fd = new FormData();
     fd.append("file", file);
     const url = await new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();

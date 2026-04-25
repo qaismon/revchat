@@ -25,7 +25,10 @@ export async function GET(req: Request) {
       { senderId: u1, receiverId: u2 },
       { senderId: u2, receiverId: u1 },
     ],
-  }).sort({ createdAt: 1 });
+  }).select("senderId receiverId content contentSender createdAt seen")
+  .limit(50)
+  .sort({ createdAt: 1 })
+  .lean();
 
   return NextResponse.json(messages);
 }

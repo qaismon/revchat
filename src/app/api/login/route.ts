@@ -3,13 +3,14 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
     await connectDB();
     const { email, password } = await req.json();
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+const user = await User.findOne({ email: email.toLowerCase() }).lean();
     if (!user) {
       return NextResponse.json({ message: "User not found" }, { status: 401 });
     }

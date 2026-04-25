@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "TOKEN_INVALID_OR_EXPIRED" }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 8);
 
     const User = mongoose.models.User;
     await User.findByIdAndUpdate(resetDoc.userId, { password: hashedPassword });
