@@ -15,7 +15,8 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String, default: "" },
 
   publicKey: { type: String, default: null },
-  isEncryptionEnabled: { type: Boolean, default: false }
+  isEncryptionEnabled: { type: Boolean, default: false },
+  encryptedPrivateKey: { type: String, default: null }
 
 }, { timestamps: true });
 

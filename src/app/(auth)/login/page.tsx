@@ -3,7 +3,92 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck, Camera } from "lucide-react";
 
-async function generateAndStoreKeys(userId: string) {
+function b64(buf: ArrayBuffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function fromB64(s: string) {
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+
+async function deriveAesKey(password: string, salt: Uint8Array, usage: KeyUsage) {
+  const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    [usage]
+  );
+}
+
+async function backupPrivateKey(userId: string, privateKeyPem: string, publicKeyPem: string, password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const aesKey = await deriveAesKey(password, salt, "encrypt");
+  const payload = JSON.stringify({ privateKey: privateKeyPem, publicKey: publicKeyPem });
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    aesKey,
+    new TextEncoder().encode(payload)
+  );
+  const blob = JSON.stringify({
+    salt: b64(salt),
+    iv: b64(iv),
+    ct: b64(encrypted),
+  });
+  console.log("📤 Backing up encrypted key pair...");
+  const res = await fetch("/api/users/backup-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, encryptedKey: blob }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || "Backup failed");
+  }
+  console.log("✅ Encrypted key pair backed up to server");
+}
+
+type RestoredKeys = { privateKey: string; publicKey: string } | null;
+async function tryRestoreKey(password: string): Promise<RestoredKeys> {
+  const res = await fetch("/api/users/backup-key");
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.encryptedKey) return null;
+
+  let parsed: { salt: string; iv: string; ct: string };
+  try { parsed = JSON.parse(data.encryptedKey); } catch { return null; }
+
+  try {
+    const aesKey = await deriveAesKey(password, fromB64(parsed.salt), "decrypt");
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fromB64(parsed.iv) },
+      aesKey,
+      fromB64(parsed.ct)
+    );
+    const { privateKey, publicKey } = JSON.parse(new TextDecoder().decode(decrypted));
+    if (!privateKey || !publicKey) return null;
+    return { privateKey, publicKey };
+  } catch {
+    return null;
+  }
+}
+
+async function uploadPublicKey(userId: string, publicKeyPem: string) {
+  const res = await fetch("/api/users/update-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, publicKey: publicKeyPem }),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || "Public key re-upload failed");
+  }
+  console.log("✅ Public key re-uploaded to match restored private key");
+}
+
+async function generateAndStoreKeys(userId: string): Promise<string> {
+  console.log("🔑 Generating RSA-OAEP key pair...");
   const keys = await window.crypto.subtle.generateKey(
     {
       name: "RSA-OAEP",
@@ -14,14 +99,17 @@ async function generateAndStoreKeys(userId: string) {
     true,
     ["encrypt", "decrypt"]
   );
+  console.log("✅ Key pair generated");
 
   const exportedPriv = await window.crypto.subtle.exportKey("pkcs8", keys.privateKey);
-  const privString = btoa(String.fromCharCode(...new Uint8Array(exportedPriv)));
+  const privString = b64(exportedPriv);
   localStorage.setItem(`privKey_${userId}`, privString);
+  console.log("💾 Private key saved to localStorage");
 
   const exportedPub = await window.crypto.subtle.exportKey("spki", keys.publicKey);
-  const pubString = btoa(String.fromCharCode(...new Uint8Array(exportedPub)));
+  const pubString = b64(exportedPub);
 
+  console.log("📤 Uploading public key to server...");
   const res = await fetch("/api/users/update-key", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -30,8 +118,12 @@ async function generateAndStoreKeys(userId: string) {
 
   if (!res.ok) {
     const errorData = await res.json();
+    console.error("❌ Server rejected public key update:", res.status, errorData);
+    localStorage.removeItem(`privKey_${userId}`);
     throw new Error(errorData.message || "Failed to sync public key");
   }
+  console.log("✅ Public key stored on server");
+  return pubString;
 }
 
 export default function LoginPage() {
@@ -49,6 +141,7 @@ export default function LoginPage() {
   const [showForgotModal, setShowForgotModal] = useState(false);
 const [forgotEmail, setForgotEmail] = useState("");
 const [forgotStatus, setForgotStatus] = useState<"idle"|"loading"|"sent">("idle");
+const [passwordChanged, setPasswordChanged] = useState(false);
 
 const handleForgotPassword = async () => {
   if (!forgotEmail.trim()) return;
@@ -154,11 +247,75 @@ const handleForgotPassword = async () => {
         if (rememberMe) localStorage.setItem("rememberedEmail", email);
 
         const existingKey = localStorage.getItem(`privKey_${data.userId}`);
-        if (!existingKey && window.isSecureContext) {
+        if (!existingKey) {
+          if (!window.isSecureContext) {
+            console.warn("⚠ Not a secure context — crypto.subtle unavailable");
+            setError("Secure context required for encryption keys. Use http://localhost:3000 (not IP) or enable HTTPS.");
+            return;
+          }
+
+          if (passwordChanged) {
+            try {
+              const newPub = await generateAndStoreKeys(data.userId);
+              const newKey = localStorage.getItem(`privKey_${data.userId}`);
+              if (newKey) await backupPrivateKey(data.userId, newKey, newPub, password);
+              console.log("✅ New encryption key generated and backed up");
+            } catch (keyErr) {
+              console.error("E2EE Sync Failed:", keyErr);
+              setError("Encryption key sync failed — please try again");
+              return;
+            }
+            router.push("/chat");
+            return;
+          }
+
+          const restored = await tryRestoreKey(password);
+          if (restored) {
+            localStorage.setItem(`privKey_${data.userId}`, restored.privateKey);
+            try {
+              await uploadPublicKey(data.userId, restored.publicKey);
+              console.log("✅ Public key re-synced from backup");
+            } catch (e) {
+              console.warn("Public key re-upload failed (old messages may still be visible):", e);
+            }
+            console.log("✅ Key pair restored from encrypted backup");
+          } else {
+            const check = await fetch("/api/users/backup-key");
+            const checkData = await check.json();
+            if (checkData.encryptedKey) {
+              setPasswordChanged(true);
+              setError("PASSWORD_CHANGED: Your password has changed since the last key backup. Old messages cannot be decrypted. Submit again to generate a new encryption key.");
+              return;
+            }
+            try {
+              const newPub = await generateAndStoreKeys(data.userId);
+              const newKey = localStorage.getItem(`privKey_${data.userId}`);
+              if (newKey) await backupPrivateKey(data.userId, newKey, newPub, password);
+              console.log("✅ New encryption key generated and backed up");
+            } catch (keyErr) {
+              console.error("E2EE Sync Failed:", keyErr);
+              setError("Encryption key sync failed — please try again");
+              return;
+            }
+          }
+        } else {
+          // Key exists locally — ensure it's backed up with public key (migration for pre-backup users)
           try {
-            await generateAndStoreKeys(data.userId);
-          } catch (keyErr) {
-            console.error("E2EE Sync Failed:", keyErr);
+            const check = await fetch("/api/users/backup-key");
+            const checkData = await check.json();
+            if (!checkData.encryptedKey) {
+              // Fetch the matching public key from server
+              const userRes = await fetch(`/api/users/${data.userId}`);
+              const userData = await userRes.json();
+              if (userData.publicKey) {
+                await backupPrivateKey(data.userId, existingKey, userData.publicKey, password);
+                console.log("✅ Existing key pair backed up to server");
+              } else {
+                console.warn("No public key on server to backup");
+              }
+            }
+          } catch (e) {
+            console.warn("Backup check/save failed (non-blocking):", e);
           }
         }
         router.push("/chat");
@@ -166,6 +323,7 @@ const handleForgotPassword = async () => {
         setError(data.message || "Access Denied: Invalid Credentials");
       }
     } catch (err) {
+      console.error("Login fetch error:", err);
       setError("Link Error: Tunnel Connection Failed");
     }
   };
@@ -276,6 +434,7 @@ const handleForgotPassword = async () => {
               setEmail("");
               setAvatarUrl("");
               setAvatarPreview("");
+              setPasswordChanged(false);
             }}
             style={{ color: "#7EE787", cursor: "pointer", fontWeight: "bold" }}
           >

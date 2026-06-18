@@ -306,6 +306,99 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
               )}
             </div>
 
+            {/* Key Management */}
+            <div className="pt-6">
+              <div className="flex items-center gap-2 text-[#58A6FF] text-[9px] tracking-[2px] mb-3 uppercase font-bold">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Key_Management
+              </div>
+
+              <div className="bg-[#0a0d14] border border-[#111520] rounded-xl overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between p-4 hover:bg-[#0d1017] transition-colors text-left"
+                  onClick={() => setActiveSection(activeSection === "keys" ? null : "keys")}
+                >
+                  <div className="flex items-center gap-4">
+                    <svg className="text-[#1e2d42]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                    <div>
+                      <label className="text-[9px] text-[#3f5472] tracking-widest block mb-0.5 uppercase">Encryption Keys</label>
+                      <div className="text-[12px] text-[#8B949E]">Export or restore your E2EE keys</div>
+                    </div>
+                  </div>
+                  <svg className={`text-[#1e2d42] transition-transform duration-200 ${activeSection === 'keys' ? 'rotate-180' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+
+                {activeSection === "keys" && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div className="h-px bg-[#0d1017] -mx-4 mb-3" />
+                    <p className="text-[10px] text-[#8B949E] leading-relaxed">
+                      Export your private key for safekeeping. If you lose access, import it back to recover old messages.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-1 bg-[#0d1829] border border-[#1a3a6e] text-[#58A6FF] text-[11px] font-bold py-3 rounded-md hover:bg-[#1a3a6e] transition-all uppercase tracking-widest"
+                        onClick={() => {
+                          const pk = localStorage.getItem(`privKey_${userId}`);
+                          if (!pk) {
+                            setModalConfig({ title: "NO_KEY", message: "No private key found in localStorage.", variant: "info", onConfirm: () => {} });
+                            return;
+                          }
+                          const blob = new Blob([pk], { type: "application/octet-stream" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `revchat-privkey-${userId}.key`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          setModalConfig({ title: "KEY_EXPORTED", message: "Private key downloaded. Store it securely — anyone with this file can read your messages.", variant: "success", onConfirm: () => {} });
+                        }}
+                      >
+                        EXPORT_KEY
+                      </button>
+                      <button
+                        className="flex-1 bg-[#0d1829] border border-[#1a3a6e] text-[#58A6FF] text-[11px] font-bold py-3 rounded-md hover:bg-[#1a3a6e] transition-all uppercase tracking-widest relative"
+                      >
+                        IMPORT_KEY
+                        <input
+                          type="file"
+                          accept=".key"
+                          className="absolute inset-0 opacity-0 cursor-pointer"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              const text = await file.text();
+                              localStorage.setItem(`privKey_${userId}`, text);
+                              // Re-derive and upload matching public key
+                              const binaryDer = Uint8Array.from(atob(text), c => c.charCodeAt(0));
+                              const algo = { name: "RSA-OAEP", hash: "SHA-256" };
+                              const privKey = await crypto.subtle.importKey("pkcs8", binaryDer, algo, true, ["decrypt"]);
+                              // Extract public key via JWK (works cross-browser)
+                              const jwk = await crypto.subtle.exportKey("jwk", privKey);
+                              const pubJwk = { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: "RSA-OAEP-256", ext: true };
+                              const pubKey = await crypto.subtle.importKey("jwk", pubJwk, algo, true, ["encrypt"]);
+                              const pubArrayBuffer = await crypto.subtle.exportKey("spki", pubKey);
+                              const pubString = btoa(String.fromCharCode(...new Uint8Array(pubArrayBuffer)));
+                              const res = await fetch("/api/users/update-key", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ userId, publicKey: pubString }),
+                              });
+                              if (!res.ok) throw new Error("Server rejected public key update");
+                              setModalConfig({ title: "KEY_RESTORED", message: "Private key imported and public key re-synced to server. Old messages should now be decryptable.", variant: "success", onConfirm: () => {} });
+                            } catch (err: any) {
+                              setModalConfig({ title: "IMPORT_FAILED", message: `ERROR: ${err.message || "Invalid key file."}`, variant: "danger", onConfirm: () => {} });
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Danger Zone */}
             <div className="pt-6">
               <div className="flex items-center gap-2 text-[#ff0000] text-[9px] tracking-[2px] mb-3 uppercase font-bold">
