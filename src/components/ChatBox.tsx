@@ -108,8 +108,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [grepQuery, setGrepQuery] = useState("");
   const [isGrepActive, setIsGrepActive] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
-  const isRecordingRef = useRef(false); // add this
+  const { isRecording, recordingTime, startRecording, stopRecording } = useAudioRecorder();
 
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [reviewData, setReviewData] = useState({ id:"", code:"", comments:"" });
@@ -127,23 +126,6 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [deletingId, setDeletingId] = useState<string|null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string|null>(null);
   const [msgCount, setMsgCount] = useState(0);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const recTimerRef = useRef<NodeJS.Timeout|null>(null);
-
-  useEffect(() => {
-  isRecordingRef.current = isRecording;
-}, [isRecording]);
-
-  useEffect(() => {
-    if (isRecording) {
-      setRecordingTime(0);
-      recTimerRef.current = setInterval(() => setRecordingTime(t=>t+1), 1000);
-    } else {
-      if (recTimerRef.current) clearInterval(recTimerRef.current);
-      setRecordingTime(0);
-    }
-    return () => { if (recTimerRef.current) clearInterval(recTimerRef.current); };
-  }, [isRecording]);
 
   const fmtRec = (s: number) => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
 
@@ -402,6 +384,7 @@ const fd = new FormData();
         @keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
         @keyframes prog{0%{background-position:200% 0}100%{background-position:-200% 0}}
         @keyframes glow{0%,100%{box-shadow:0 0 0 1px #1a2a4a}50%{box-shadow:0 0 16px rgba(88,166,255,0.12),0 0 0 1px #1a3a6e}}
+        @keyframes voice-pulse{0%,100%{box-shadow:0 0 0 0 rgba(35,134,54,0.4)}50%{box-shadow:0 0 12px 2px rgba(35,134,54,0.6)}}
         .msg-in{animation:msgIn .22s cubic-bezier(.16,1,.3,1) forwards}
         .fu{animation:fadeUp .2s ease-out}
         .si{animation:slideIn .28s cubic-bezier(.16,1,.3,1) forwards}
@@ -696,14 +679,6 @@ const fd = new FormData();
           </div>
         )}
 
-        {isRecording&&(
-          <div className="fu flex items-center gap-3 mb-2 px-3 py-2 rounded-xl" style={{background:"#1a0808",border:"1px solid #3a1010"}}>
-            <div className="w-2 h-2 rounded-full bg-[#ff3333]" style={{animation:"typingBounce 0.8s ease-in-out infinite"}}/>
-            <span className="text-[11px] font-bold text-[#ff3333]">REC {fmtRec(recordingTime)}</span>
-            <span className="text-[10px] ml-auto text-[#484F58]">stop to send</span>
-          </div>
-        )}
-
         <div className="inp flex items-end gap-2 px-3 py-2 rounded-2xl transition-all" style={{background:"#0a0c10",border:"1px solid #1a1f2e"}}>
           <span className="text-sm font-bold mb-2 shrink-0 select-none text-[#7EE787]">$</span>
           <textarea ref={textareaRef} rows={Math.min(text.split("\n").length,4)}
@@ -727,10 +702,44 @@ const fd = new FormData();
             <button onClick={()=>setShowEmojiPicker(!showEmojiPicker)} className="btn w-8 h-8 rounded-xl flex items-center justify-center" style={{color:showEmojiPicker?"#caac03":"#484F58",border:`1px solid ${showEmojiPicker?"#caac03":"transparent"}`,background:showEmojiPicker?"#1a1500":"transparent"}} title="Emoji">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
             </button>
-            <button onClick={() => isRecordingRef.current ? handleVoiceSend() : startRecording()} disabled={isUploadingVoice} className="btn w-8 h-8 rounded-xl flex items-center justify-center" style={{color:isRecording?"#ff3333":isUploadingVoice?"#58A6FF":"#484F58",border:`1px solid ${isRecording?"#3a1010":isUploadingVoice?"#1a3a6e":"transparent"}`,background:isRecording?"#1a0808":isUploadingVoice?"#0a1628":"transparent"}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-            <button onClick={()=>sendMessage()} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:text.trim()?"#0f2e1a":"#0a0c10",color:text.trim()?"#7EE787":"#30363d",border:`1px solid ${text.trim()?"#238636":"#1a1f2e"}`}}>
+            {isRecording ? (
+              <button
+                onClick={handleVoiceSend}
+                disabled={isUploadingVoice}
+                className="btn flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold tracking-wider transition-all"
+                style={{
+                  background: "#0f2e1a",
+                  color: "#7EE787",
+                  border: "1px solid #238636",
+                  animation: "voice-pulse 1.5s ease-in-out infinite",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+                {fmtRec(recordingTime)}
+              </button>
+            ) : (
+              <button
+                onClick={async () => { const ok = await startRecording(); if (!ok) console.warn("Mic access denied"); }}
+                disabled={isUploadingVoice}
+                className="btn w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{
+                  color: isUploadingVoice ? "#58A6FF" : "#484F58",
+                  border: isUploadingVoice ? "1px solid #1a3a6e" : "transparent",
+                  background: isUploadingVoice ? "#0a1628" : "transparent",
+                }}
+                title="Record voice"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              </button>
+            )}
+            <button onClick={()=>sendMessage()} disabled={!!isRecording} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:(!isRecording && text.trim())?"#0f2e1a":"#0a0c10",color:(!isRecording && text.trim())?"#7EE787":"#30363d",border:`1px solid ${(!isRecording && text.trim())?"#238636":"#1a1f2e"}`}}>
               SEND <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
           </div>

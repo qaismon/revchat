@@ -51,7 +51,7 @@ export default function GroupChatBox({
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = { current: null as HTMLDivElement | null };
-  const { isRecording, startRecording, stopRecording } = useAudioRecorder();
+  const { isRecording, recordingTime, startRecording, stopRecording } = useAudioRecorder();
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -428,6 +428,8 @@ export default function GroupChatBox({
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes rec-glow { 0% { box-shadow: 0 0 0px #ff333300; } 50% { box-shadow: 0 0 16px #ff333366; } 100% { box-shadow: 0 0 0px #ff333300; } }
         .rec-pulse { animation: rec-glow 1.5s infinite ease-in-out; }
+        @keyframes vp-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(110,64,201,0.3); } 50% { box-shadow: 0 0 14px 2px rgba(110,64,201,0.5); } }
+        .voice-pulse-group { animation: vp-glow 1.5s ease-in-out infinite; }
       `}</style>
 
       {/* Header */}
@@ -708,22 +710,66 @@ export default function GroupChatBox({
               )}
             </button>
 
-            <button onMouseDown={startRecording} onMouseUp={handleVoiceSend} disabled={isUploadingVoice} className={isRecording ? "rec-pulse" : ""}
-              style={{ background: isRecording ? "#ff333322" : isUploadingVoice ? "#58A6FF22" : "transparent", border: isRecording ? "1px solid #ff3333" : isUploadingVoice ? "1px solid #58A6FF" : "1px solid #30363D", color: isRecording ? "#ff3333" : isUploadingVoice ? "#58A6FF" : "#8B949E", borderRadius: "4px", padding: "8px 10px", cursor: isUploadingVoice ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s", outline: "none" }}
-              title={isRecording ? "RECORDING_STREAM..." : isUploadingVoice ? "UPLOADING..." : "START_VOICE_CAPTURE"}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-              </svg>
-              {isRecording && <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>REC</span>}
-              {isUploadingVoice && <span style={{ fontSize: "9px", marginLeft: "6px", fontWeight: "bold" }}>UP...</span>}
-            </button>
+            {isRecording ? (
+              <button
+                onClick={handleVoiceSend}
+                disabled={isUploadingVoice}
+                className="btn voice-pulse-group"
+                style={{
+                  background: "#6e40c944",
+                  color: "#a78bfa",
+                  border: "1px solid #6e40c9",
+                  borderRadius: "4px",
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  fontFamily: "'Fira Code', monospace",
+                  fontSize: "11px",
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "all 0.2s",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polygon points="5,3 19,12 5,21" />
+                </svg>
+                {`${Math.floor(recordingTime / 60)}:${(recordingTime % 60).toString().padStart(2, "0")}`}
+              </button>
+            ) : (
+              <button
+                onClick={async () => { const ok = await startRecording(); if (!ok) console.warn("Mic access denied"); }}
+                disabled={isUploadingVoice}
+                style={{
+                  background: isUploadingVoice ? "#58A6FF22" : "transparent",
+                  border: isUploadingVoice ? "1px solid #58A6FF" : "1px solid #30363D",
+                  color: isUploadingVoice ? "#58A6FF" : "#8B949E",
+                  borderRadius: "4px",
+                  padding: "8px 10px",
+                  cursor: isUploadingVoice ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s",
+                  outline: "none",
+                }}
+                title="Record voice"
+              >
+                {isUploadingVoice ? (
+                  <span style={{ fontSize: "9px", fontWeight: "bold" }}>UP...</span>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                  </svg>
+                )}
+              </button>
+            )}
 
-            <button onClick={() => sendMessage()} style={{ background: "#6e40c922", color: "#a78bfa", border: "1px solid #6e40c9", borderRadius: "4px", padding: "6px 16px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold", transition: "all 0.2s" }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "#6e40c944")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "#6e40c922")}>
+            <button onClick={() => sendMessage()} disabled={isRecording}
+              style={{ background: isRecording ? "transparent" : "#6e40c922", color: isRecording ? "#30363d" : "#a78bfa", border: `1px solid ${isRecording ? "#1a1f2e" : "#6e40c9"}`, borderRadius: "4px", padding: "6px 16px", cursor: isRecording ? "not-allowed" : "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold", transition: "all 0.2s" }}>
               SEND
             </button>
           </div>
