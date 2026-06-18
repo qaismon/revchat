@@ -13,13 +13,19 @@ import AskAIModal from "./AskAIModal";
 import FreeAIChat from "./FreeAIChat";
 import AIMessage from "./AIMessage";
 
+function fromB64(s: string): Uint8Array<ArrayBuffer> {
+  const bytes = atob(s);
+  const buf = new ArrayBuffer(bytes.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) view[i] = bytes.charCodeAt(i);
+  return view;
+}
+
 async function importPublicKey(pem: string) {
-  const binaryDer = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
-  return window.crypto.subtle.importKey("spki", binaryDer, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]);
+  return window.crypto.subtle.importKey("spki", fromB64(pem), { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]);
 }
 async function importPrivateKey(pem: string) {
-  const binaryDer = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
-  return window.crypto.subtle.importKey("pkcs8", binaryDer, { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt"]);
+  return window.crypto.subtle.importKey("pkcs8", fromB64(pem), { name: "RSA-OAEP", hash: "SHA-256" }, true, ["decrypt"]);
 }
 
 function TickIcon({ status }: { status: "sending" | "sent" | "delivered" | "seen" }) {
@@ -285,10 +291,10 @@ const fd = new FormData();
             if(m.senderId==="AI_BOT"){nd[mid]=m.content;upd=true;continue;}
             if(!raw){if(new Date().getTime()-new Date(m.createdAt).getTime()<2000)continue;nd[mid]=isMe?"[History Unavailable]":"[Encrypted Packet]";upd=true;continue;}
             const {ct,iv,wk}=JSON.parse(raw);
-            const wkb=Uint8Array.from(atob(wk),c=>c.charCodeAt(0));
+            const wkb=fromB64(wk);
             const aesk=await window.crypto.subtle.decrypt({name:"RSA-OAEP"},privKey,wkb);
             const aesKey=await window.crypto.subtle.importKey("raw",aesk,{name:"AES-GCM"},true,["decrypt"]);
-            const dec=await window.crypto.subtle.decrypt({name:"AES-GCM",iv:Uint8Array.from(atob(iv),c=>c.charCodeAt(0))},aesKey,Uint8Array.from(atob(ct),c=>c.charCodeAt(0)));
+            const dec=await window.crypto.subtle.decrypt({name:"AES-GCM",iv:fromB64(iv)},aesKey,fromB64(ct));
             nd[mid]=new TextDecoder().decode(dec);upd=true;
           } catch(e){console.error(e);nd[m._id||m.createdAt]="[ERROR: DECRYPTION_FAILED]";upd=true;}
         }

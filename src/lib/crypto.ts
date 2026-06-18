@@ -23,11 +23,14 @@ export async function exportKey(key: CryptoKey) {
 
 // Import a string back into a Key object
 export async function importPublicKey(pem: string) {
-  const binaryDer = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  const bytes = atob(pem);
+  const buf = new ArrayBuffer(bytes.length);
+  const binaryDer = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binaryDer[i] = bytes.charCodeAt(i);
   return window.crypto.subtle.importKey(
     "spki",
     binaryDer,
-    { name: "RSA-OAEP", hash: "SHA-256" }, // Must match generation
+    { name: "RSA-OAEP", hash: "SHA-256" },
     true,
     ["encrypt"]
   );

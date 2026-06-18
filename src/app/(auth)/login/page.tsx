@@ -6,12 +6,24 @@ import { Eye, EyeOff, ShieldCheck, Camera } from "lucide-react";
 function b64(buf: ArrayBuffer) {
   return btoa(String.fromCharCode(...new Uint8Array(buf)));
 }
-function fromB64(s: string) {
-  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+function fromB64(s: string): Uint8Array<ArrayBuffer> {
+  const bytes = atob(s);
+  const buf = new ArrayBuffer(bytes.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) view[i] = bytes.charCodeAt(i);
+  return view;
 }
 
-async function deriveAesKey(password: string, salt: Uint8Array, usage: KeyUsage) {
-  const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+function randomBytes(n: number): Uint8Array<ArrayBuffer> {
+  const buf = new ArrayBuffer(n);
+  const view = new Uint8Array(buf);
+  crypto.getRandomValues(view);
+  return view;
+}
+
+async function deriveAesKey(password: string, salt: Uint8Array<ArrayBuffer>, usage: KeyUsage) {
+  const pw = new Uint8Array(new TextEncoder().encode(password));
+  const keyMaterial = await crypto.subtle.importKey("raw", pw, "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
     { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
     keyMaterial,
@@ -22,18 +34,18 @@ async function deriveAesKey(password: string, salt: Uint8Array, usage: KeyUsage)
 }
 
 async function backupPrivateKey(userId: string, privateKeyPem: string, publicKeyPem: string, password: string) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const salt = randomBytes(16);
+  const iv = randomBytes(12);
   const aesKey = await deriveAesKey(password, salt, "encrypt");
   const payload = JSON.stringify({ privateKey: privateKeyPem, publicKey: publicKeyPem });
   const encrypted = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     aesKey,
-    new TextEncoder().encode(payload)
+    new Uint8Array(new TextEncoder().encode(payload))
   );
   const blob = JSON.stringify({
-    salt: b64(salt),
-    iv: b64(iv),
+    salt: b64(salt.buffer),
+    iv: b64(iv.buffer),
     ct: b64(encrypted),
   });
   console.log("📤 Backing up encrypted key pair...");

@@ -13,7 +13,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [activeSection, setActiveSection] = useState<"username" | "password" | "delete" | null>(null);
+  const [activeSection, setActiveSection] = useState<"username" | "password" | "delete" | "keys" | null>(null);
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [avatarHovered, setAvatarHovered] = useState(false);
@@ -370,7 +370,10 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
                               const text = await file.text();
                               localStorage.setItem(`privKey_${userId}`, text);
                               // Re-derive and upload matching public key
-                              const binaryDer = Uint8Array.from(atob(text), c => c.charCodeAt(0));
+                              const bytes = atob(text);
+                              const buf = new ArrayBuffer(bytes.length);
+                              const binaryDer = new Uint8Array(buf);
+                              for (let i = 0; i < bytes.length; i++) binaryDer[i] = bytes.charCodeAt(i);
                               const algo = { name: "RSA-OAEP", hash: "SHA-256" };
                               const privKey = await crypto.subtle.importKey("pkcs8", binaryDer, algo, true, ["decrypt"]);
                               // Extract public key via JWK (works cross-browser)
