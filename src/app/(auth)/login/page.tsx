@@ -153,7 +153,8 @@ export default function LoginPage() {
   const [showForgotModal, setShowForgotModal] = useState(false);
 const [forgotEmail, setForgotEmail] = useState("");
 const [forgotStatus, setForgotStatus] = useState<"idle"|"loading"|"sent">("idle");
-const [passwordChanged, setPasswordChanged] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
 const handleForgotPassword = async () => {
   if (!forgotEmail.trim()) return;
@@ -234,9 +235,11 @@ const handleForgotPassword = async () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
 
     if (isUploading) {
       setError("Please wait — avatar is still uploading.");
+      setSubmitting(false);
       return;
     }
 
@@ -263,6 +266,7 @@ const handleForgotPassword = async () => {
           if (!window.isSecureContext) {
             console.warn("⚠ Not a secure context — crypto.subtle unavailable");
             setError("Secure context required for encryption keys. Use http://localhost:3000 (not IP) or enable HTTPS.");
+            setSubmitting(false);
             return;
           }
 
@@ -275,6 +279,7 @@ const handleForgotPassword = async () => {
             } catch (keyErr) {
               console.error("E2EE Sync Failed:", keyErr);
               setError("Encryption key sync failed — please try again");
+              setSubmitting(false);
               return;
             }
             router.push("/chat");
@@ -297,6 +302,7 @@ const handleForgotPassword = async () => {
             if (checkData.encryptedKey) {
               setPasswordChanged(true);
               setError("PASSWORD_CHANGED: Your password has changed since the last key backup. Old messages cannot be decrypted. Submit again to generate a new encryption key.");
+              setSubmitting(false);
               return;
             }
             try {
@@ -307,6 +313,7 @@ const handleForgotPassword = async () => {
             } catch (keyErr) {
               console.error("E2EE Sync Failed:", keyErr);
               setError("Encryption key sync failed — please try again");
+              setSubmitting(false);
               return;
             }
           }
@@ -333,10 +340,12 @@ const handleForgotPassword = async () => {
         router.push("/chat");
       } else {
         setError(data.message || "Access Denied: Invalid Credentials");
+        setSubmitting(false);
       }
     } catch (err) {
       console.error("Login fetch error:", err);
       setError("Link Error: Tunnel Connection Failed");
+      setSubmitting(false);
     }
   };
 
@@ -454,6 +463,15 @@ const handleForgotPassword = async () => {
           </span>
         </p>
       </form>
+      {submitting && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(13,17,23,0.92)", zIndex: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+          <div style={{ width: 32, height: 32, border: "2px solid #30363D", borderTopColor: "#7EE787", borderRadius: "50%", animation: "login-spin 0.8s linear infinite" }} />
+          <span style={{ color: "#7EE787", fontSize: "14px", fontFamily: "'Fira Code', monospace", letterSpacing: "2px" }}>
+            LOGGING_IN...
+          </span>
+          <style>{`@keyframes login-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
       {showForgotModal && (
   <div onClick={() => setShowForgotModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
     <div onClick={e => e.stopPropagation()} style={{ background: "#161B22", border: "1px solid #30363D", borderRadius: "8px", padding: "24px", width: "340px", display: "flex", flexDirection: "column", gap: "16px", fontFamily: "'Fira Code', monospace" }}>

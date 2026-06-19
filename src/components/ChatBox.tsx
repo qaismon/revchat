@@ -110,6 +110,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [peerName, setPeerName] = useState("");
   const [peerAvatar, setPeerAvatar] = useState("");
   const [peerPublicKey, setPeerPublicKey] = useState<string|null>(null);
+  const [peerKeyStatus, setPeerKeyStatus] = useState<"loading"|"ready"|"missing">("loading");
   const [decryptedMessages, setDecryptedMessages] = useState<Record<string,string>>({});
   const [grepQuery, setGrepQuery] = useState("");
   const [isGrepActive, setIsGrepActive] = useState(false);
@@ -132,6 +133,10 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [deletingId, setDeletingId] = useState<string|null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string|null>(null);
   const [msgCount, setMsgCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
 
   const fmtRec = (s: number) => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
 
@@ -260,18 +265,70 @@ const fd = new FormData();
   };
 
   const scrollToBottom = useCallback(()=>{if(!isGrepActive)messagesEndRef.current?.scrollIntoView({behavior:"smooth"});},[isGrepActive]);
-  useEffect(()=>{scrollToBottom();},[messages,isPeerTyping,decryptedMessages,scrollToBottom]);
+
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore || messages.length === 0 || !userId || !peerId) return;
+    setIsLoadingMore(true);
+    const el = messagesContainerRef.current;
+    const prevScrollHeight = el?.scrollHeight || 0;
+    try {
+      const oldest = messages[0];
+      const before = oldest?.createdAt;
+      if (!before) { setHasMore(false); setIsLoadingMore(false); return; }
+      const res = await fetch(`/api/messages?user1=${userId}&user2=${peerId}&limit=30&before=${encodeURIComponent(before)}`);
+      const data = await res.json();
+      const older = Array.isArray(data) ? data : (data.messages || []);
+      if (older.length === 0) { setHasMore(false); setIsLoadingMore(false); return; }
+      const existingIds = new Set(messages.map((m: any) => m._id));
+      const deduped = older.filter((m: any) => !existingIds.has(m._id));
+      setMessages(prev => [...deduped, ...prev]);
+      setHasMore(Array.isArray(data) ? false : (data.hasMore ?? false));
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevScrollHeight;
+      });
+    } catch (err) { console.error(err); }
+    finally { setIsLoadingMore(false); }
+  }, [userId, peerId, messages, hasMore, isLoadingMore]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el || isLoadingMore || !hasMore) return;
+    if (el.scrollTop < 80) loadMore();
+  }, [loadMore, isLoadingMore, hasMore]);
+  useEffect(()=>{
+    if (!isGrepActive) {
+      const el = messagesContainerRef.current;
+      if (!el) { messagesEndRef.current?.scrollIntoView({behavior:"smooth"}); return; }
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (isNearBottom) messagesEndRef.current?.scrollIntoView({behavior:"smooth"});
+    }
+  },[messages,isPeerTyping,decryptedMessages,isGrepActive]);
+
+  // Initial scroll to bottom
+  useEffect(() => {
+    if (messages.length > 0 && !initialScrollDone.current) {
+      initialScrollDone.current = true;
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+    }
+  }, [messages]);
 
   useEffect(()=>{
     const load = async () => {
       if (!userId||!peerId) return;
       try {
-        const res = await fetch(`/api/messages?user1=${userId}&user2=${peerId}`);
-        const data = await res.json(); setMessages(data); setMsgCount(data.length);
+        const res = await fetch(`/api/messages?user1=${userId}&user2=${peerId}&limit=30`);
+        const data = await res.json();
+        const msgs = Array.isArray(data) ? data : (data.messages || []);
+        setMessages(msgs);
+        setHasMore(Array.isArray(data) ? false : (data.hasMore ?? false));
+        setMsgCount(msgs.length);
         socketRef.current?.emit("seen-messages",{senderId:peerId,receiverId:userId});
         const ur = await fetch(`/api/users/${peerId}`);
         const ud = await ur.json();
         setPeerName(ud.username); setPeerAvatar(ud.avatar); setPeerPublicKey(ud.publicKey);
+        setPeerKeyStatus(ud.publicKey ? "ready" : "missing");
       } catch(err) { console.error(err); }
     };
     load();
@@ -308,7 +365,7 @@ const fd = new FormData();
     const socket=socketRef.current; if(!socket) return;
     const hMsg=(msg:any)=>{
       const rel=(msg.senderId===userId&&msg.receiverId===peerId)||(msg.senderId===peerId&&msg.receiverId===userId);
-      if(rel){if(msg.senderId===userId)return;setMessages(p=>[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);if(msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
+      if(rel){if(msg.senderId===userId)return;setMessages(p=>p.some(m=>m._id===msg._id||m._id===msg.messageId)?p:[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);if(msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
     };
     const hSeen=({seenBy}:{seenBy:string})=>{if(seenBy===peerId)setMessages(p=>p.map(m=>m.senderId===userId?{...m,seen:true,delivered:true}:m));};
     const hTyping=({from,isTyping}:{from:string;isTyping:boolean})=>{if(from===peerId)setIsPeerTyping(isTyping);};
@@ -325,9 +382,13 @@ const fd = new FormData();
     typingTimeoutRef.current=setTimeout(()=>{socketRef.current?.emit("typing",{to:peerId,from:userId,isTyping:false});},2000);
   };
 
+  const [sendError, setSendError] = useState("");
+
   const sendMessage = async (overrideContent?: string) => {
     const base=overrideContent||text;
-    if(!base.trim()||!peerPublicKey) return;
+    if(!base.trim()) return;
+    if(!peerPublicKey) { setSendError("Cannot send: peer encryption keys not available"); return; }
+    setSendError("");
     const qt=replyingTo?.text.startsWith("REPLY_PACKET:")?replyingTo.text.substring(replyingTo.text.lastIndexOf("|")+1):replyingTo?.text??"";
     const cts=replyingTo?`REPLY_PACKET:${qt}|${base}`:base;
     setReplyingTo(null);
@@ -356,7 +417,7 @@ const fd = new FormData();
       if(!dbR.ok) throw new Error("DB save failed");
       const sv=await dbR.json();
       if(sv?._id){setMessages(p=>p.map(m=>m._id===tid?{...m,_id:sv._id}:m));setDecryptedMessages(p=>{const n:Record<string,string>={...p,[sv._id]:raw};delete n[tid];return n;});}
-    } catch(err){console.error("Hybrid Transmission failed",err);}
+    } catch(err){console.error("Hybrid Transmission failed",err);setSendError("Message failed to send");}
   };
 
   const displayedMessages=isGrepActive?messages.filter(m=>(decryptedMessages[m._id||m.createdAt]||"").toLowerCase().includes(grepQuery.toLowerCase())):messages;
@@ -484,7 +545,18 @@ const fd = new FormData();
         {bgStyle==="particles"&&<ParticlesBg/>}
         <div className="absolute inset-0 pointer-events-none z-0" style={{background:"radial-gradient(ellipse 70% 50% at 50% 100%,rgba(35,134,54,0.03) 0%,transparent 70%)"}}/>
 
-        <div className="cb cs relative z-[1] h-full overflow-y-auto px-4 py-4 flex flex-col gap-0.5">
+        <div className="cb cs relative z-[1] h-full overflow-y-auto px-4 py-4 flex flex-col gap-0.5" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+          {isLoadingMore && (
+            <div className="py-3 flex items-center justify-center gap-2 shrink-0">
+              <div style={{width:14,height:14,border:"1.5px solid #30363D",borderTopColor:"#7EE787",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>
+              <span className="text-[10px] text-[#484F58]">loading older messages...</span>
+            </div>
+          )}
+          {hasMore && !isLoadingMore && messages.length > 0 && (
+            <div className="py-2 flex justify-center shrink-0">
+              <span className="text-[9px] text-[#30363D]">scroll up to load more</span>
+            </div>
+          )}
           {displayedMessages.length===0&&!isGrepActive&&(
             <div className="flex-1 flex flex-col items-center justify-center gap-4 py-20">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{background:"#0a0c10",border:"1px solid #1a1f2e"}}>
@@ -685,6 +757,23 @@ const fd = new FormData();
           </div>
         )}
 
+        {peerKeyStatus === "missing" && (
+          <div className="mb-2 px-3 py-2 rounded-xl flex items-center gap-2" style={{background:"#1a0a0a",border:"1px solid #3a1010"}}>
+            <span className="text-[10px] text-[#f85149]">⚠ Peer has no encryption keys — cannot send encrypted messages</span>
+          </div>
+        )}
+        {peerKeyStatus === "loading" && (
+          <div className="mb-2 px-3 py-2 rounded-xl flex items-center gap-2" style={{background:"#0a1628",border:"1px solid #1a3a6e"}}>
+            <div style={{width:10,height:10,border:"1px solid #30363D",borderTopColor:"#58A6FF",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>
+            <span className="text-[10px] text-[#58A6FF]">loading encryption keys...</span>
+          </div>
+        )}
+        {sendError && (
+          <div className="mb-2 px-3 py-1.5 rounded-xl flex items-center gap-2" style={{background:"#1a0a0a",border:"1px solid #3a1010"}}>
+            <span className="text-[10px] text-[#f85149]">✖ {sendError}</span>
+          </div>
+        )}
+
         <div className="inp flex items-end gap-2 px-3 py-2 rounded-2xl transition-all" style={{background:"#0a0c10",border:"1px solid #1a1f2e"}}>
           <span className="text-sm font-bold mb-2 shrink-0 select-none text-[#7EE787]">$</span>
           <textarea ref={textareaRef} rows={Math.min(text.split("\n").length,4)}
@@ -745,7 +834,7 @@ const fd = new FormData();
                 </svg>
               </button>
             )}
-            <button onClick={()=>sendMessage()} disabled={!!isRecording} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:(!isRecording && text.trim())?"#0f2e1a":"#0a0c10",color:(!isRecording && text.trim())?"#7EE787":"#30363d",border:`1px solid ${(!isRecording && text.trim())?"#238636":"#1a1f2e"}`}}>
+            <button onClick={()=>sendMessage()} disabled={!!isRecording || !text.trim()} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:(!isRecording && text.trim())?"#0f2e1a":"#0a0c10",color:(!isRecording && text.trim())?"#7EE787":"#30363d",border:`1px solid ${(!isRecording && text.trim())?"#238636":"#1a1f2e"}`}}>
               SEND <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
           </div>

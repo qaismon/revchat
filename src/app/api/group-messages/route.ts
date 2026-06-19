@@ -3,21 +3,35 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import GroupMessage from "@/models/GroupMessage";
 
-// GET /api/group-messages?groupId
+// GET /api/group-messages?groupId&limit=30&before=ISO
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const groupId = searchParams.get("groupId");
+  const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+  const before = searchParams.get("before");
 
   if (!groupId)
     return NextResponse.json({ error: "groupId is required" }, { status: 400 });
 
   await connectDB();
 
-  const messages = await GroupMessage.find({
+  const query: any = {
     groupId: new mongoose.Types.ObjectId(groupId),
-  }).sort({ createdAt: 1 });
+  };
+  if (before) {
+    query.createdAt = { $lt: new Date(before) };
+  }
 
-  return NextResponse.json(messages);
+  const messages = await GroupMessage.find(query)
+    .limit(limit + 1)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const hasMore = messages.length > limit;
+  if (hasMore) messages.pop();
+  messages.reverse();
+
+  return NextResponse.json({ messages, hasMore });
 }
 
 // POST /api/group-messages

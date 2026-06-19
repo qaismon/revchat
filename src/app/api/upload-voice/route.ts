@@ -9,10 +9,13 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File;
 
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
+    if (file.size === 0) return NextResponse.json({ error: "Empty file" }, { status: 400 });
 
-const response = await utapi.uploadFiles(
-  new File([await file.arrayBuffer()], file.name || `voice-${Date.now()}.webm`, { type: file.type || "audio/webm" })
-);
+    console.log("Voice upload:", { name: file.name, size: file.size, type: file.type });
+
+    const response = await utapi.uploadFiles(file);
+    console.log("UploadThing response:", response?.data?.ufsUrl, response?.data?.url);
+
     const url = response?.data?.ufsUrl ?? response?.data?.url;
     if (!url) return NextResponse.json({ error: "Upload failed" }, { status: 500 });
 

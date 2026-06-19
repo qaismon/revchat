@@ -6,8 +6,10 @@ import Friendship from "@/models/Friendship";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const user1 = searchParams.get("user1"); // Current user
-  const user2 = searchParams.get("user2"); // Peer
+  const user1 = searchParams.get("user1");
+  const user2 = searchParams.get("user2");
+  const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 100);
+  const before = searchParams.get("before");
 
   if (!user1 || !user2) return NextResponse.json([], { status: 200 });
 
@@ -20,17 +22,27 @@ export async function GET(req: Request) {
     { $set: { seen: true } }
   );
 
-  const messages = await Message.find({
+  const query: any = {
     $or: [
       { senderId: u1, receiverId: u2 },
       { senderId: u2, receiverId: u1 },
     ],
-  }).select("senderId receiverId content contentSender createdAt seen")
-  .limit(50)
-  .sort({ createdAt: 1 })
-  .lean();
+  };
+  if (before) {
+    query.createdAt = { $lt: new Date(before) };
+  }
 
-  return NextResponse.json(messages);
+  const messages = await Message.find(query)
+    .select("senderId receiverId content contentSender createdAt seen")
+    .limit(limit + 1)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const hasMore = messages.length > limit;
+  if (hasMore) messages.pop();
+  messages.reverse();
+
+  return NextResponse.json({ messages, hasMore });
 }
 
 export async function POST(req: Request) {

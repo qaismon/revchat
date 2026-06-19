@@ -8,6 +8,7 @@ export function useAudioRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const mimeTypeRef = useRef("audio/webm");
 
   const clearTimer = () => {
     if (timerRef.current) {
@@ -28,6 +29,7 @@ export function useAudioRecorder() {
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
+      mimeTypeRef.current = mimeType;
       chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
@@ -60,7 +62,14 @@ export function useAudioRecorder() {
 
       mediaRecorder.onstop = () => {
         clearTimer();
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        if (chunksRef.current.length === 0) {
+          mediaRecorder.stream.getTracks().forEach((t) => t.stop());
+          setIsRecording(false);
+          setError("Recording too short — no audio data captured");
+          resolve(null);
+          return;
+        }
+        const blob = new Blob(chunksRef.current, { type: mimeTypeRef.current || "audio/webm" });
         mediaRecorder.stream.getTracks().forEach((t) => t.stop());
         chunksRef.current = [];
         setIsRecording(false);

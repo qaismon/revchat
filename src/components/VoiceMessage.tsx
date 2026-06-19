@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 interface VoiceMessageProps {
   src: string;
@@ -20,6 +20,7 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
   const [duration, setDuration] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [blobUrl, setBlobUrl] = useState("");
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -27,21 +28,92 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
     const a = audioRef.current;
     if (a) {
       setCurrentTime(a.currentTime);
+      if (!duration) trySetDuration();
     }
+  };
+
+  const trySetDuration = () => {
+    const a = audioRef.current;
+    if (a && a.duration && isFinite(a.duration) && a.duration > 0) {
+      setDuration(a.duration);
+      return true;
+    }
+    return false;
   };
 
   const handleLoaded = () => {
-    const a = audioRef.current;
-    if (a && a.duration && isFinite(a.duration)) {
-      setDuration(a.duration);
-      setIsLoaded(true);
+    trySetDuration();
+    setIsLoaded(true);
+    setHasError(false);
+  };
+
+  const handleMetaLoaded = () => {
+    if (!trySetDuration()) {
+      setTimeout(() => {
+        const a = audioRef.current;
+        if (a && a.duration && isFinite(a.duration) && a.duration > 0) {
+          setDuration(a.duration);
+        }
+      }, 200);
     }
   };
 
-  const handleError = () => {
+  const handleError = (e: any) => {
+    const mediaError = e?.target?.error;
+    console.error("VoiceMessage audio error:", {
+      code: mediaError?.code,
+      message: mediaError?.message,
+      src: e?.target?.src,
+    });
     setHasError(true);
     setIsLoaded(true);
   };
+
+  const handleRetry = useCallback(async () => {
+    setHasError(false);
+    setIsLoaded(false);
+    setBlobUrl("");
+    setDuration(0);
+    setCurrentTime(0);
+  }, []);
+
+  useEffect(() => {
+    if (!src || blobUrl) return;
+    let cancelled = false;
+    fetch(src)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.blob();
+      })
+      .then((blob) => {
+        if (!cancelled) {
+          if (blob.size === 0) {
+            setHasError(true);
+            setIsLoaded(true);
+            return;
+          }
+          const fixed = new Blob([blob], { type: "audio/webm" });
+          const url = URL.createObjectURL(fixed);
+          setBlobUrl(url);
+          setIsLoaded(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasError(true);
+          setIsLoaded(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [src, blobUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [blobUrl]);
 
   const togglePlay = useCallback(async () => {
     const a = audioRef.current;
@@ -89,10 +161,11 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
     >
       <audio
         ref={audioRef}
-        src={src}
-        preload="metadata"
+        src={blobUrl || undefined}
+        preload="auto"
         onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoaded}
+        onDurationChange={handleMetaLoaded}
+        onLoadedMetadata={handleMetaLoaded}
         onCanPlay={handleLoaded}
         onError={handleError}
         onEnded={() => {
@@ -266,7 +339,12 @@ export default function VoiceMessage({ src }: VoiceMessageProps) {
           }}
         >
           {hasError ? (
-            <span style={{ color: "#f85149" }}>Error loading audio</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ color: "#f85149" }}>Error loading audio</span>
+              <button onClick={handleRetry} style={{ background: "none", border: "1px solid #30363D", borderRadius: "4px", color: "#8B949E", cursor: "pointer", fontSize: "9px", padding: "1px 6px", fontFamily: "'Fira Code', monospace" }}>
+                RETRY
+              </button>
+            </div>
           ) : !isLoaded ? (
             <span style={{ color: "#484F58" }}>Loading...</span>
           ) : (

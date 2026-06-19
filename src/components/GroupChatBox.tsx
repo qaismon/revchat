@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSocket } from "@/hooks/useSocket";
 import CodeReviewer from "./CodeReviewer";
 import { useAudioRecorder } from "@/hooks/useAudioRecorder";
@@ -42,7 +42,7 @@ export default function GroupChatBox({
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const typingTimeoutRef = typeof window !== "undefined" ? { current: null as NodeJS.Timeout | null } : { current: null };
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [isGrepActive, setIsGrepActive] = useState(false);
   const [grepQuery, setGrepQuery] = useState("");
@@ -50,7 +50,9 @@ export default function GroupChatBox({
   const [addSearch, setAddSearch] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const messagesEndRef = { current: null as HTMLDivElement | null };
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
   const { isRecording, recordingTime, startRecording, stopRecording } = useAudioRecorder();
   const [isUploadingVoice, setIsUploadingVoice] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
@@ -60,6 +62,8 @@ export default function GroupChatBox({
   const [draggedFile, setDraggedFile] = useState<File | null>(null);
   const [dragPreviewUrl, setDragPreviewUrl] = useState<string | null>(null);
   const [dragCaption, setDragCaption] = useState("");
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // --- AI / EDITOR STATE ---
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -82,9 +86,13 @@ export default function GroupChatBox({
   // Load group messages
   useEffect(() => {
     if (!groupId) return;
-    fetch(`/api/group-messages?groupId=${groupId}`)
+    fetch(`/api/group-messages?groupId=${groupId}&limit=30`)
       .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setMessages(data); })
+      .then((data) => {
+        const msgs = Array.isArray(data) ? data : (data.messages || []);
+        setMessages(msgs);
+        setHasMore(Array.isArray(data) ? false : (data.hasMore ?? false));
+      })
       .catch(console.error);
   }, [groupId]);
 
@@ -96,7 +104,7 @@ export default function GroupChatBox({
     const handleGroupMessage = (msg: any) => {
       if (msg.groupId !== groupId) return;
       if (msg.senderId === userId) return;
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
     };
 
     const handleTyping = ({ fromName, isTyping }: { from: string; fromName: string; isTyping: boolean }) => {
@@ -118,9 +126,53 @@ export default function GroupChatBox({
   // Auto-scroll
   useEffect(() => {
     if (!isGrepActive) {
-      (messagesEndRef as any).current?.scrollIntoView({ behavior: "smooth" });
+      const el = messagesContainerRef.current;
+      if (!el) { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); return; }
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (isNearBottom) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, typingUsers, isGrepActive]);
+
+  // Initial scroll to bottom
+  useEffect(() => {
+    if (messages.length > 0 && !initialScrollDone.current) {
+      initialScrollDone.current = true;
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+    }
+  }, [messages]);
+
+  // --- PAGINATION ---
+  const loadMore = useCallback(async () => {
+    if (!hasMore || isLoadingMore || messages.length === 0 || !groupId) return;
+    setIsLoadingMore(true);
+    const el = messagesContainerRef.current;
+    const prevScrollHeight = el?.scrollHeight || 0;
+    try {
+      const oldest = messages[0];
+      const before = oldest?.createdAt;
+      if (!before) { setHasMore(false); setIsLoadingMore(false); return; }
+      const res = await fetch(`/api/group-messages?groupId=${groupId}&limit=30&before=${encodeURIComponent(before)}`);
+      const data = await res.json();
+      const older = Array.isArray(data) ? data : (data.messages || []);
+      if (older.length === 0) { setHasMore(false); setIsLoadingMore(false); return; }
+      const existingIds = new Set(messages.map((m: any) => m._id));
+      const deduped = older.filter((m: any) => !existingIds.has(m._id));
+      setMessages(prev => [...deduped, ...prev]);
+      setHasMore(Array.isArray(data) ? false : (data.hasMore ?? false));
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevScrollHeight;
+      });
+    } catch (err) { console.error(err); }
+    finally { setIsLoadingMore(false); }
+  }, [groupId, messages, hasMore, isLoadingMore]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el || isLoadingMore || !hasMore) return;
+    if (el.scrollTop < 80) loadMore();
+  }, [loadMore, isLoadingMore, hasMore]);
 
   // Load users for add-member panel
   useEffect(() => {
@@ -249,7 +301,8 @@ export default function GroupChatBox({
 
     setIsUploadingVoice(true);
     try {
-      const file = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
+      const ext = audioBlob.type.includes("mp4") ? "mp4" : audioBlob.type.includes("ogg") ? "ogg" : "webm";
+      const file = new File([audioBlob], `voice-${Date.now()}.${ext}`, { type: audioBlob.type || "audio/webm" });
       const formData = new FormData();
       formData.append("file", file);
 
@@ -430,6 +483,7 @@ export default function GroupChatBox({
         .rec-pulse { animation: rec-glow 1.5s infinite ease-in-out; }
         @keyframes vp-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(110,64,201,0.3); } 50% { box-shadow: 0 0 14px 2px rgba(110,64,201,0.5); } }
         .voice-pulse-group { animation: vp-glow 1.5s ease-in-out infinite; }
+        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
       `}</style>
 
       {/* Header */}
@@ -495,7 +549,18 @@ export default function GroupChatBox({
           onDrop={handleDrop}
         >
           {dragOver && <div style={{ position: "absolute", inset: 0, background: "#6e40c908", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ color: "#a78bfa", fontSize: "13px" }}>// DROP_FILE_HERE</span></div>}
-        <div className="group-scroll" style={{ height: "100%", overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div className="group-scroll" style={{ height: "100%", overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }} ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+          {isLoadingMore && (
+            <div style={{ padding: "12px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              <div style={{width:14,height:14,border:"1.5px solid #30363D",borderTopColor:"#a78bfa",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>
+              <span style={{fontSize:"10px",color:"#484F58"}}>loading older messages...</span>
+            </div>
+          )}
+          {hasMore && !isLoadingMore && messages.length > 0 && (
+            <div style={{padding:"6px 0",textAlign:"center"}}>
+              <span style={{fontSize:"9px",color:"#30363D"}}>scroll up to load more</span>
+            </div>
+          )}
           {displayedMessages.length === 0 && !isGrepActive && (
             <div style={{ color: "#484F58", textAlign: "center", marginTop: "40px", fontSize: "12px" }}>
               <div style={{ marginBottom: "8px" }}>👥</div>
@@ -583,7 +648,7 @@ export default function GroupChatBox({
               </div>
             );
           })}
-          <div ref={(el) => { (messagesEndRef as any).current = el; }} />
+          <div ref={messagesEndRef} />
         </div>
         </div>
 
