@@ -28,10 +28,12 @@ export default function VoiceCallOverlay({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (audioRef.current && remoteStream) {
-      audioRef.current.srcObject = remoteStream;
+    const el = audioRef.current;
+    if (el && remoteStream) {
+      el.srcObject = remoteStream;
+      el.play().catch(() => {});
     }
-  }, [remoteStream]);
+  }, [remoteStream, callState]);
 
   if (callState === "idle") return null;
 
