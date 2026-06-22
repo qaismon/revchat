@@ -18,6 +18,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   const ringtoneRef = useRef<AudioContext | null>(null);
   const ringIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const endCallFnRef = useRef<() => void>(() => {});
+  const connectedRef = useRef(false);
 
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -36,6 +37,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     setRemoteStream(null);
     setCallDuration(0);
     setIsMuted(false);
+    connectedRef.current = false;
   }, []);
 
   const stopRingtone = useCallback(() => {
@@ -94,21 +96,39 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
 
     pc.onicecandidate = (e) => {
       if (e.candidate && peerIdRef.current) {
+        console.log("[WebRTC] Sending ICE candidate to", peerIdRef.current);
         socketRef.current?.emit("ice-candidate", { to: peerIdRef.current, candidate: e.candidate.toJSON() });
+      } else {
+        console.log("[WebRTC] ICE candidate gathering complete");
       }
     };
 
-    pc.ontrack = (e) => setRemoteStream(e.streams[0]);
+    pc.ontrack = (e) => {
+      console.log("[WebRTC] Received remote track");
+      setRemoteStream(e.streams[0]);
+    };
 
     pc.oniceconnectionstatechange = () => {
+      console.log("[WebRTC] ICE state:", pc.iceConnectionState);
+      if ((pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") && !connectedRef.current) {
+        connectedRef.current = true;
+        setCallState("connected");
+        startTimer();
+      }
       if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
         endCallFnRef.current();
       }
     };
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    localStreamRef.current = stream;
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStreamRef.current = stream;
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      console.log("[WebRTC] Local stream acquired, tracks added");
+    } catch (err) {
+      console.error("[WebRTC] getUserMedia failed:", err);
+      throw err;
+    }
 
     return pc;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,9 +144,10 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
       const pc = await createPC();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      console.log("[WebRTC] Offer created, sending call-offer to", peerId);
       socketRef.current?.emit("call-offer", { to: peerId, sdp: offer, userName: peerName });
     } catch (err) {
-      console.error("startCall failed", err);
+      console.error("[WebRTC] startCall failed:", err);
       cleanup();
       setCallState("idle");
       setCallPeerId(null);
@@ -134,36 +155,37 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   }, [createPC, socketRef, cleanup, playRingtone]);
 
   const answerCall = useCallback(async () => {
-    if (!pendingOfferRef.current || !peerIdRef.current) return;
+    if (!pendingOfferRef.current || !peerIdRef.current) {
+      console.error("[WebRTC] answerCall: missing pending offer or peerId");
+      return;
+    }
     stopRingtone();
-    setCallState("connected");
     try {
       const pc = await createPC();
+      console.log("[WebRTC] Setting remote description from pending offer");
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
       pendingOfferRef.current = null;
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      console.log("[WebRTC] Answer created, sending call-answer to", peerIdRef.current);
       socketRef.current?.emit("call-answer", { to: peerIdRef.current, sdp: answer });
       flushCandidates();
-      startTimer();
     } catch (err) {
-      console.error("answerCall failed", err);
+      console.error("[WebRTC] answerCall failed:", err);
       cleanup();
       setCallState("idle");
       setCallPeerId(null);
     }
-  }, [createPC, socketRef, flushCandidates, startTimer, cleanup, stopRingtone]);
+  }, [createPC, socketRef, flushCandidates, cleanup, stopRingtone]);
 
   const endCall = useCallback(() => {
+    console.log("[WebRTC] Ending call");
     stopRingtone();
     if (peerIdRef.current) {
       socketRef.current?.emit("call-end", { to: peerIdRef.current });
     }
     cleanup();
-    setCallState("idle");
-    setCallPeerId(null);
-    setCallPeerName("");
-    peerIdRef.current = null;
+    setCallState("ended");
   }, [socketRef, cleanup, stopRingtone]);
 
   endCallFnRef.current = endCall;
@@ -194,6 +216,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   }, [socketRef]);
 
   const handleIncomingCall = useCallback((data: { from: string; userName: string; sdp: RTCSessionDescriptionInit }) => {
+    console.log("[WebRTC] Incoming call from", data.from, data.userName);
     peerIdRef.current = data.from;
     setCallPeerId(data.from);
     setCallPeerName(data.userName);
@@ -206,15 +229,16 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     stopRingtone();
     if (pcRef.current) {
       try {
+        console.log("[WebRTC] Setting remote description from answer");
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
         flushCandidates();
-        startTimer();
-        setCallState("connected");
       } catch (err) {
-        console.error("handleRemoteAnswer failed", err);
+        console.error("[WebRTC] handleRemoteAnswer failed:", err);
       }
+    } else {
+      console.error("[WebRTC] handleRemoteAnswer: no PC found");
     }
-  }, [flushCandidates, startTimer, stopRingtone]);
+  }, [flushCandidates, stopRingtone]);
 
   const handleIceCandidate = useCallback((candidate: RTCIceCandidateInit) => {
     if (pcRef.current?.remoteDescription) {
@@ -225,26 +249,35 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   }, []);
 
   const handleRemoteEnded = useCallback(() => {
+    console.log("[WebRTC] Remote ended call");
     stopRingtone();
     cleanup();
     setCallState("ended");
-    setCallPeerId(null);
-    setCallPeerName("");
-    peerIdRef.current = null;
   }, [cleanup, stopRingtone]);
 
   const handleRemoteDeclined = useCallback(() => {
+    console.log("[WebRTC] Remote declined call");
     stopRingtone();
     cleanup();
-    setCallState("idle");
-    setCallPeerId(null);
-    setCallPeerName("");
-    peerIdRef.current = null;
+    setCallState("ended");
   }, [cleanup, stopRingtone]);
 
   const handleRemoteMuted = useCallback((_muted: boolean) => {
     // could show a peer-muted indicator
   }, []);
+
+  useEffect(() => {
+    if (callState === "ended") {
+      const t = setTimeout(() => {
+        setCallState("idle");
+        setCallPeerId(null);
+        setCallPeerName("");
+        peerIdRef.current = null;
+        connectedRef.current = false;
+      }, 2500);
+      return () => clearTimeout(t);
+    }
+  }, [callState]);
 
   useEffect(() => {
     return () => {

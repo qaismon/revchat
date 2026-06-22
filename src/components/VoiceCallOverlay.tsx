@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import type { CallState } from "@/types";
 
 interface VoiceCallOverlayProps {
@@ -24,17 +23,7 @@ export default function VoiceCallOverlay({
   callState, callPeerName, isMuted, callDuration,
   onAnswer, onEnd, onDecline, onToggleMute,
 }: VoiceCallOverlayProps) {
-  const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    if (callState === "ended") {
-      const t = setTimeout(() => setDismissed(true), 2000);
-      return () => clearTimeout(t);
-    }
-    setDismissed(false);
-  }, [callState]);
-
-  if (dismissed || callState === "idle") return null;
+  if (callState === "idle") return null;
 
   return (
     <>

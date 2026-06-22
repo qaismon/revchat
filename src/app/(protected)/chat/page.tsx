@@ -158,7 +158,6 @@ export default function ChatPage() {
     const socket = socketRef.current;
     if (!socket) return;
 
-    // Stable wrapper functions for socket.off cleanup
     const onAnswered = (data: { sdp: RTCSessionDescriptionInit }) => handleRemoteAnswer(data.sdp);
     const onIce = (data: { candidate: RTCIceCandidateInit }) => handleIceCandidate(data.candidate);
     const onMuted = (data: { muted: boolean }) => handleRemoteMuted(data.muted);
@@ -178,7 +177,7 @@ export default function ChatPage() {
       socket.off("call-declined", handleRemoteDeclined);
       socket.off("call-muted", onMuted);
     };
-  }, [socketRef, handleIncomingCall, handleRemoteAnswer, handleIceCandidate, handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted]);
+  }, [socketRef, handleIncomingCall, handleRemoteAnswer, handleIceCandidate, handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted, currentUser?._id]);
 
   // Navigation Logic
   const dismissToast = useCallback((id: string) => {

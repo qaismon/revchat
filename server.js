@@ -129,22 +129,27 @@ socket.on("friend-request-sent", ({ to, from }) => {
 
     // VOICE CALL SIGNALING
     socket.on("call-offer", ({ to, sdp, userName }) => {
+      console.log(`[Call] Offer from ${socket.userId} to ${to}`);
       io.to(to).emit("incoming-call", { from: socket.userId, userName, sdp });
     });
 
     socket.on("call-answer", ({ to, sdp }) => {
+      console.log(`[Call] Answer from ${socket.userId} to ${to}`);
       io.to(to).emit("call-answered", { from: socket.userId, sdp });
     });
 
     socket.on("ice-candidate", ({ to, candidate }) => {
+      console.log(`[Call] ICE from ${socket.userId} to ${to}`);
       io.to(to).emit("ice-candidate", { from: socket.userId, candidate });
     });
 
     socket.on("call-end", ({ to }) => {
+      console.log(`[Call] End from ${socket.userId} to ${to}`);
       io.to(to).emit("call-ended", { from: socket.userId });
     });
 
     socket.on("call-decline", ({ to }) => {
+      console.log(`[Call] Decline from ${socket.userId} to ${to}`);
       io.to(to).emit("call-declined", { from: socket.userId });
     });
 
