@@ -49,7 +49,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
       const res = await fetch("/api/users/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, type, value, ...extra }),
+        body: JSON.stringify({ type, value, ...extra }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -110,8 +110,6 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
         try {
           const res = await fetch("/api/users/delete-account", {
             method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId }),
           });
           if (res.ok) {
             localStorage.removeItem(`privKey_${userId}`);
@@ -385,7 +383,7 @@ export default function ProfilePageClient({ userId }: { userId: string }) {
                               const res = await fetch("/api/users/update-key", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ userId, publicKey: pubString }),
+                                body: JSON.stringify({ publicKey: pubString }),
                               });
                               if (!res.ok) throw new Error("Server rejected public key update");
                               setModalConfig({ title: "KEY_RESTORED", message: "Private key imported and public key re-synced to server. Old messages should now be decryptable.", variant: "success", onConfirm: () => {} });

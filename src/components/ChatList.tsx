@@ -77,7 +77,7 @@ export default function ChatList({
   const loadFriendRequests = useCallback(async () => {
     if (!currentUserId) return;
     try {
-      const res = await fetch(`/api/friends?myId=${currentUserId}`);
+      const res = await fetch("/api/friends");
       const data = await res.json();
       setIncomingRequests(data.incoming || []);
       setOutgoingRequests(data.outgoing || []);
@@ -209,7 +209,7 @@ export default function ChatList({
       await fetch("/api/friends", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ myId: currentUserId, targetId, action }),
+        body: JSON.stringify({ targetId, action }),
       });
       if (action === "request") socketRef.current?.emit("friend-request-sent", { to: targetId, from: currentUserId });
       if (action === "accept" || action === "decline") socketRef.current?.emit("friend-request-responded", { to: targetId, action });

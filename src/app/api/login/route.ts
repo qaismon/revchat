@@ -3,21 +3,27 @@ import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { checkRateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    if (!checkRateLimit(ip, 10, 60000)) {
+      return NextResponse.json({ message: "Too many requests" }, { status: 429 });
+    }
+
     await connectDB();
     const { email, password } = await req.json();
 
 const user = await User.findOne({ email: email.toLowerCase() }).lean();
     if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 401 });
+      return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json({ message: "Invalid email or password" }, { status: 401 });
     }
 
     // 1. Create the Token
@@ -36,8 +42,8 @@ const user = await User.findOne({ email: email.toLowerCase() }).lean();
     // 3. Set the Cookie (match the name 'accessToken' used in your /api/me)
    response.cookies.set("accessToken", token, {
   httpOnly: true,
-  secure: false,
-  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
   maxAge: 60 * 60 * 24 * 7,
   path: "/",
 });

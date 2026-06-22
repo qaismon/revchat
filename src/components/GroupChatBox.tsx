@@ -7,6 +7,13 @@ import ConfirmModal from "./ConfirmModal";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import AIMessage from './AIMessage';
 import VoiceMessage from './VoiceMessage';
+import { ParticleBurst } from "./ParticleBurst";
+import { useSound } from "@/hooks/useSound";
+import MatrixRain from "./chatBackgrounds/MatrixRain";
+import ParticlesBg from "./chatBackgrounds/Particlesbg";
+import NeuralBg from "./chatBackgrounds/NeuralBg";
+import { themes } from "@/lib/themes";
+import type { ThemeId } from "@/lib/themes";
 
 interface Member {
   _id: string;
@@ -64,6 +71,21 @@ export default function GroupChatBox({
   const [dragCaption, setDragCaption] = useState("");
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [burst, setBurst] = useState<{id:number;x:number;y:number}|null>(null);
+  const [theme, setTheme] = useState<ThemeId>("neon");
+  const { playSend, playReceive } = useSound();
+  const themeKeys: ThemeId[] = ["matrix", "neon", "amber", "cyan"];
+  const nextTheme = (t: ThemeId): ThemeId => themeKeys[(themeKeys.indexOf(t) + 1) % themeKeys.length];
+  const burstIdRef = useRef(0);
+  const sendBtnRef = useRef<HTMLButtonElement>(null);
+  const triggerBurst = useCallback(() => {
+    const btn = sendBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    burstIdRef.current++;
+    setBurst({id: burstIdRef.current, x: rect.left + rect.width/2, y: rect.top + rect.height/2});
+    setTimeout(() => setBurst(null), 800);
+  }, []);
 
   // --- AI / EDITOR STATE ---
   const [isReviewMode, setIsReviewMode] = useState(false);
@@ -105,6 +127,7 @@ export default function GroupChatBox({
       if (msg.groupId !== groupId) return;
       if (msg.senderId === userId) return;
       setMessages((prev) => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
+      playReceive();
     };
 
     const handleTyping = ({ fromName, isTyping }: { from: string; fromName: string; isTyping: boolean }) => {
@@ -245,6 +268,7 @@ export default function GroupChatBox({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groupId, senderId: userId, senderName: userName, senderAvatar: userAvatar, content }),
       });
+      playSend();
     } catch (err) {
       console.error("Failed to save group message", err);
     }
@@ -472,7 +496,7 @@ export default function GroupChatBox({
     .filter((u) => addSearch === "" || u.username.toLowerCase().includes(addSearch.toLowerCase()));
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#090b0f", border: "2px solid #6e40c9", borderRadius: "8px", margin: "10px", boxShadow: "0 8px 32px rgba(110,64,201,0.2)", fontFamily: "'Fira Code', monospace", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: themes[theme].bg, border: `2px solid ${themes[theme].accent2}`, borderRadius: "8px", margin: "10px", boxShadow: `0 8px 32px ${themes[theme].accent2}33`, fontFamily: "'Fira Code', monospace", overflow: "hidden" }}>
       <style>{`
         .group-scroll::-webkit-scrollbar { width: 8px; }
         .group-scroll::-webkit-scrollbar-track { background: #0D1117; }
@@ -484,22 +508,31 @@ export default function GroupChatBox({
         @keyframes vp-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(110,64,201,0.3); } 50% { box-shadow: 0 0 14px 2px rgba(110,64,201,0.5); } }
         .voice-pulse-group { animation: vp-glow 1.5s ease-in-out infinite; }
         @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+        @keyframes glitchIn{0%{opacity:0;clip-path:inset(0 0 100% 0)}20%{opacity:1;clip-path:inset(0 0 60% 0);transform:translateX(-2px)}40%{clip-path:inset(40% 0 30% 0);transform:translateX(2px)}60%{clip-path:inset(20% 0 50% 0);transform:translateX(-1px)}80%{clip-path:inset(0 0 0 0);transform:translateX(0)}100%{clip-path:inset(0 0 0 0);opacity:1}}
+        @keyframes crtLine{0%{top:-2px}100%{top:100%}}
+        @keyframes flipOut{0%{transform:perspective(600px) rotateY(0)}50%{transform:perspective(600px) rotateY(90deg) translateX(10px)}100%{transform:perspective(600px) rotateY(180deg) translateX(60px);opacity:0}}
+        @keyframes glitchOut{0%{opacity:1;filter:blur(0)}20%{transform:translateX(-4px) skewX(2deg);filter:blur(1px)}40%{transform:translateX(4px) skewX(-2deg);filter:blur(2px)}60%{transform:translateX(-2px);filter:blur(3px)}100%{opacity:0;filter:blur(8px);transform:translateX(40px)}}
+        .msg-in{animation:fadeIn .22s cubic-bezier(.16,1,.3,1) forwards,glitchIn .35s ease-out forwards;position:relative;max-width:100%}
+        .msg-in::after{content:"";position:absolute;left:0;right:0;height:1px;background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(167,139,250,0.03) 1px,rgba(167,139,250,0.03) 2px);animation:crtLine 3s linear infinite;pointer-events:none;opacity:0.4}
+        .msg-flip-out{animation:flipOut .45s cubic-bezier(.55,0,.1,1) forwards,glitchOut .45s ease-out forwards!important;pointer-events:none;max-width:100%}
+        .reaction-float{animation:floatUp .35s cubic-bezier(.34,1.56,.64,1) forwards}
+        @keyframes floatUp{from{opacity:0;transform:translateY(6px) scale(.5)}to{opacity:1;transform:translateY(0) scale(1)}}
       `}</style>
 
       {/* Header */}
-      <div style={{ background: "#161B22", padding: "12px 16px", borderBottom: "2px solid #6e40c9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: themes[theme].bg, padding: "12px 16px", borderBottom: `2px solid ${themes[theme].accent2}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {onBack && (
             <button onClick={onBack} className="md:hidden p-2 text-[#484F58] hover:text-[#C9D1D9] mr-1">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
           )}
-          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#6e40c933", border: "1px solid #6e40c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>👥</div>
+          <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: `${themes[theme].accent}33`, border: `1px solid ${themes[theme].accent2}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>👥</div>
           <div>
             <div style={{ fontWeight: "bold", color: "#C9D1D9", fontSize: "14px" }}>
-              {groupName} <span style={{ color: "#a78bfa", fontSize: "10px" }}>[GROUP]</span>
+              {groupName} <span style={{ color: themes[theme].accent, fontSize: "10px" }}>[GROUP]</span>
             </div>
-            <div style={{ fontSize: "10px", color: "#6e40c9" }}>
+            <div style={{ fontSize: "10px", color: themes[theme].accent2 }}>
               {typingUsers.length > 0
                 ? `// ${typingUsers.join(", ")} ${typingUsers.length === 1 ? "is" : "are"} typing...`
                 : `// ${members.length} member${members.length !== 1 ? "s" : ""}`}
@@ -515,8 +548,11 @@ export default function GroupChatBox({
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             )}
           </button>
-          <button onClick={() => setShowMembers(!showMembers)} style={{ background: showMembers ? "#6e40c922" : "transparent", border: showMembers ? "1px solid #6e40c9" : "none", color: "#a78bfa", cursor: "pointer", borderRadius: "4px", padding: "4px 8px", fontSize: "10px", fontFamily: "inherit" }}>
+          <button onClick={() => setShowMembers(!showMembers)} style={{ background: showMembers ? `${themes[theme].accent}22` : "transparent", border: showMembers ? `1px solid ${themes[theme].accent2}` : "none", color: themes[theme].accent, cursor: "pointer", borderRadius: "4px", padding: "4px 8px", fontSize: "10px", fontFamily: "inherit" }}>
             MEMBERS
+          </button>
+          <button onClick={() => setTheme(t => nextTheme(t))} style={{ background: "transparent", border: `1px solid ${themes[theme].accent}33`, color: themes[theme].accent, cursor: "pointer", borderRadius: "4px", padding: "4px 8px", fontSize: "9px", fontFamily: "inherit", fontWeight: "bold" }}>
+            {themes[theme].name}
           </button>
           {isAdmin ? (
             <button onClick={handleDeleteGroup} style={{ background: "transparent", border: "1px solid #f8514933", color: "#f85149", cursor: "pointer", borderRadius: "4px", padding: "4px 8px", fontSize: "10px", fontFamily: "inherit" }}
@@ -535,7 +571,7 @@ export default function GroupChatBox({
       {/* Search bar */}
       {isGrepActive && (
         <div className="fade-in" style={{ background: "#0D1117", padding: "8px 16px", borderBottom: "1px solid #30363D", display: "flex", alignItems: "center" }}>
-          <span style={{ color: "#a78bfa", marginRight: "10px", fontSize: "12px" }}>grep:</span>
+          <span style={{ color: themes[theme].accent, marginRight: "10px", fontSize: "12px" }}>grep:</span>
           <input autoFocus style={{ flex: 1, background: "transparent", border: "none", color: "#C9D1D9", outline: "none", fontSize: "14px" }} placeholder="search group history..." value={grepQuery} onChange={(e) => setGrepQuery(e.target.value)} />
         </div>
       )}
@@ -548,8 +584,12 @@ export default function GroupChatBox({
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
         >
-          {dragOver && <div style={{ position: "absolute", inset: 0, background: "#6e40c908", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ color: "#a78bfa", fontSize: "13px" }}>// DROP_FILE_HERE</span></div>}
-        <div className="group-scroll" style={{ height: "100%", overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }} ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+          {dragOver && <div style={{ position: "absolute", inset: 0, background: `${themes[theme].accent}08`, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}><span style={{ color: themes[theme].accent, fontSize: "13px" }}>// DROP_FILE_HERE</span></div>}
+          {theme === "neon" && <ParticlesBg color="#a78bfa" bgColor="#090610"/>}
+          {theme === "matrix" && <MatrixRain color="#7EE787" bgColor="#07090c"/>}
+          {theme === "amber" && <MatrixRain color="#FFB000" bgColor="#080600"/>}
+          {theme === "cyan" && <NeuralBg color="#58A6FF" highlight="#00D4FF" bgColor="#000a12"/>}
+          <div className="group-scroll" style={{ height: "100%", overflowY: "auto", overflowX: "hidden", padding: "20px", display: "flex", flexDirection: "column", gap: "12px" }} ref={messagesContainerRef} onScroll={handleMessagesScroll}>
           {isLoadingMore && (
             <div style={{ padding: "12px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
               <div style={{width:14,height:14,border:"1.5px solid #30363D",borderTopColor:"#a78bfa",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>
@@ -580,7 +620,7 @@ export default function GroupChatBox({
             const isFile = m.content?.startsWith("FILE_PACKET:");
 
             return (
-              <div key={msgId} style={{ alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"), width: isAI ? "95%" : "auto", maxWidth: "80%" }}>
+              <div key={msgId} className="msg-in" style={{ alignSelf: isAI ? "center" : (isMe ? "flex-end" : "flex-start"), width: isAI ? "95%" : "auto", maxWidth: "80%" }}>
                 {/* Sender name for non-me, non-AI messages */}
                 {!isMe && !isAI && (
                   <div style={{ fontSize: "10px", color: "#a78bfa", marginBottom: "3px", paddingLeft: "4px" }}>
@@ -598,7 +638,7 @@ export default function GroupChatBox({
                   position: "relative",
                   maxWidth: isAI ? "min(95%, 560px)" : undefined
                 }}>
-                  <div style={{ fontSize: "14px" }}>
+                  <div style={{ fontSize: "14px", wordBreak: "break-word" }}>
                     {!isAI && !isAudio && !isFile && (
                       <span style={{ color: isMe ? "#a78bfa" : "#58A6FF", marginRight: "8px" }}>
                         {isMe ? ">" : "$"}
@@ -654,23 +694,23 @@ export default function GroupChatBox({
 
         {/* Members Panel */}
         {showMembers && (
-          <div className="fade-in group-scroll" style={{ width: "200px", borderLeft: "1px solid #6e40c9", background: "#0D1117", overflowY: "auto", display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "10px 12px", borderBottom: "1px solid #6e40c933", fontSize: "10px", color: "#a78bfa", fontWeight: "bold" }}>
+          <div className="fade-in group-scroll" style={{ width: "200px", borderLeft: `1px solid ${themes[theme].accent2}`, background: "#0D1117", overflowY: "auto", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${themes[theme].accent}33`, fontSize: "10px", color: themes[theme].accent, fontWeight: "bold" }}>
               // MEMBERS ({members.length})
             </div>
             {isAdmin && (
-              <button onClick={() => setShowAddMember(!showAddMember)} style={{ margin: "8px", padding: "5px", background: "#6e40c922", border: "1px dashed #6e40c9", borderRadius: "4px", color: "#a78bfa", fontSize: "10px", cursor: "pointer", fontFamily: "inherit" }}>
+              <button onClick={() => setShowAddMember(!showAddMember)} style={{ margin: "8px", padding: "5px", background: `${themes[theme].accent}22`, border: `1px dashed ${themes[theme].accent2}`, borderRadius: "4px", color: themes[theme].accent, fontSize: "10px", cursor: "pointer", fontFamily: "inherit" }}>
                 + ADD_MEMBER
               </button>
             )}
             {showAddMember && isAdmin && (
               <div className="fade-in" style={{ padding: "0 8px 8px" }}>
                 <input autoFocus placeholder="SEARCH_USER..." value={addSearch} onChange={(e) => setAddSearch(e.target.value)}
-                  style={{ width: "100%", background: "#161B22", border: "1px solid #6e40c9", borderRadius: "4px", color: "#C9D1D9", padding: "4px 6px", fontSize: "11px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                  style={{ width: "100%", background: "#161B22", border: `1px solid ${themes[theme].accent2}`, borderRadius: "4px", color: "#C9D1D9", padding: "4px 6px", fontSize: "11px", fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
                 {nonMembers.slice(0, 6).map((u) => (
                   <div key={u._id} onClick={() => handleAddMember(u._id)}
                     style={{ padding: "5px 6px", fontSize: "11px", color: "#C9D1D9", cursor: "pointer", borderRadius: "3px", marginTop: "3px" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#6e40c922")}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = `${themes[theme].accent}22`)}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     + {u.username?.toLowerCase()}
                   </div>
@@ -732,21 +772,21 @@ export default function GroupChatBox({
       )}
 
       {/* Input Section */}
-      <div style={{ padding: "16px", borderTop: "2px solid #6e40c9", background: "#161B22" }}>
+      <div style={{ padding: "16px", borderTop: `2px solid ${themes[theme].accent2}`, background: themes[theme].bg }}>
         {text.includes("```") && (
-          <div style={{ padding: "10px", background: "#0D1117", border: "1px dashed #6e40c9", borderBottom: "none", borderRadius: "6px 6px 0 0", fontSize: "12px", margin: "0 16px -1px 16px" }}>
-            <div style={{ color: "#6e40c9", fontSize: "10px", marginBottom: "8px" }}>// PREVIEW_MODE: DETECTED_CODE_BLOCK</div>
+          <div style={{ padding: "10px", background: "#0D1117", border: `1px dashed ${themes[theme].accent2}`, borderBottom: "none", borderRadius: "6px 6px 0 0", fontSize: "12px", margin: "0 16px -1px 16px" }}>
+            <div style={{ color: themes[theme].accent, fontSize: "10px", marginBottom: "8px" }}>// PREVIEW_MODE: DETECTED_CODE_BLOCK</div>
             <CodeReviewer text={text} />
           </div>
         )}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", background: "#0D1117", border: "1px solid #6e40c9", borderRadius: "6px", padding: "4px 8px" }}>
-          <span style={{ color: "#a78bfa", fontWeight: "bold", fontSize: "14px", marginLeft: "4px", userSelect: "none" }}>$</span>
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px", background: "#0D1117", border: `1px solid ${themes[theme].accent2}`, borderRadius: "6px", padding: "4px 8px" }}>
+          <span style={{ color: themes[theme].accent, fontWeight: "bold", fontSize: "14px", marginLeft: "4px", userSelect: "none" }}>$</span>
           <textarea
             rows={text.split("\n").length > 3 ? 3 : 1}
             style={{ flex: 1, padding: "10px 4px", border: "none", background: "transparent", color: "#C9D1D9", outline: "none", fontFamily: "'Fira Code', monospace", fontSize: "14px", resize: "none", overflowY: "auto" }}
             value={text}
             onChange={handleInputChange}
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); triggerBurst(); } }}
             placeholder="type_group_message..."
           />
 
@@ -833,8 +873,8 @@ export default function GroupChatBox({
               </button>
             )}
 
-            <button onClick={() => sendMessage()} disabled={isRecording}
-              style={{ background: isRecording ? "transparent" : "#6e40c922", color: isRecording ? "#30363d" : "#a78bfa", border: `1px solid ${isRecording ? "#1a1f2e" : "#6e40c9"}`, borderRadius: "4px", padding: "6px 16px", cursor: isRecording ? "not-allowed" : "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold", transition: "all 0.2s" }}>
+            <button ref={sendBtnRef} onClick={()=>{sendMessage();triggerBurst();}} disabled={isRecording}
+              style={{ background: isRecording ? "transparent" : `${themes[theme].accent}22`, color: isRecording ? "#30363d" : themes[theme].accent, border: `1px solid ${isRecording ? "#1a1f2e" : themes[theme].accent2}`, borderRadius: "4px", padding: "6px 16px", cursor: isRecording ? "not-allowed" : "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold", transition: "all 0.2s" }}>
               SEND
             </button>
           </div>
@@ -847,9 +887,9 @@ export default function GroupChatBox({
 
       {draggedFile && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px" }}>
-          <div style={{ background: "#161B22", border: "1px solid #6e40c9", borderRadius: "8px", padding: "20px", width: "320px", display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ background: "#161B22", border: `1px solid ${themes[theme].accent2}`, borderRadius: "8px", padding: "20px", width: "320px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: "#a78bfa", fontSize: "11px", fontFamily: "'Fira Code', monospace" }}>// ATTACH_FILE</span>
+              <span style={{ color: themes[theme].accent, fontSize: "11px", fontFamily: "'Fira Code', monospace" }}>// ATTACH_FILE</span>
               <button onClick={() => { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); }} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", fontSize: "14px" }}>✕</button>
             </div>
             {dragPreviewUrl
@@ -858,7 +898,7 @@ export default function GroupChatBox({
             <input autoFocus placeholder="Add a caption... (optional)" value={dragCaption} onChange={e => setDragCaption(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter") handleDragPreviewSend(); if (e.key === "Escape") { setDraggedFile(null); setDragPreviewUrl(null); setDragCaption(""); } }}
               style={{ background: "#0D1117", border: "1px solid #30363D", borderRadius: "4px", padding: "8px 12px", color: "#C9D1D9", fontSize: "13px", fontFamily: "'Fira Code', monospace", outline: "none" }} />
-            <button onClick={handleDragPreviewSend} style={{ background: "#6e40c922", color: "#a78bfa", border: "1px solid #6e40c9", borderRadius: "4px", padding: "10px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold" }}>SEND_FILE</button>
+            <button onClick={handleDragPreviewSend} style={{ background: `${themes[theme].accent}22`, color: themes[theme].accent, border: `1px solid ${themes[theme].accent2}`, borderRadius: "4px", padding: "10px", cursor: "pointer", fontFamily: "'Fira Code', monospace", fontSize: "12px", fontWeight: "bold" }}>SEND_FILE</button>
           </div>
         </div>
       )}
@@ -870,6 +910,7 @@ export default function GroupChatBox({
         onConfirm={() => { modalConfig?.onConfirm(); setModalConfig(null); }}
         onCancel={() => setModalConfig(null)}
       />
+      <ParticleBurst burst={burst} />
     </div>
   );
 }

@@ -1,7 +1,14 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-export default function MatrixRain() {
+function hexRgba(hex: string, a: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+export default function MatrixRain({ color = "#7EE787", bgColor = "#07090c" }: { color?: string; bgColor?: string }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -23,9 +30,9 @@ export default function MatrixRain() {
     const drops: number[] = Array(cols).fill(1);
 
     const draw = () => {
-      ctx.fillStyle = "rgba(9, 11, 15, 0.15)";
+      ctx.fillStyle = hexRgba(bgColor, 0.15);
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "rgba(126, 231, 135, 0.12)";
+      ctx.fillStyle = hexRgba(color, 0.12);
       ctx.font = `${fontSize}px 'Fira Code', monospace`;
 
       for (let i = 0; i < drops.length; i++) {
@@ -41,7 +48,7 @@ export default function MatrixRain() {
       clearInterval(interval);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [color, bgColor]);
 
   return (
     <canvas

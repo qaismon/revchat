@@ -52,7 +52,7 @@ async function backupPrivateKey(userId: string, privateKeyPem: string, publicKey
   const res = await fetch("/api/users/backup-key", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, encryptedKey: blob }),
+    body: JSON.stringify({ encryptedKey: blob }),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -90,7 +90,7 @@ async function uploadPublicKey(userId: string, publicKeyPem: string) {
   const res = await fetch("/api/users/update-key", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, publicKey: publicKeyPem }),
+    body: JSON.stringify({ publicKey: publicKeyPem }),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -125,7 +125,7 @@ async function generateAndStoreKeys(userId: string): Promise<string> {
   const res = await fetch("/api/users/update-key", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, publicKey: pubString }),
+    body: JSON.stringify({ publicKey: pubString }),
   });
 
   if (!res.ok) {

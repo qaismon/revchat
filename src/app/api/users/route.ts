@@ -5,6 +5,10 @@ import Message from "@/models/Message";
 import Friendship from "@/models/Friendship";
 import mongoose from "mongoose";
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function GET(req: NextRequest) {
   await connectDB();
 
@@ -19,9 +23,8 @@ export async function GET(req: NextRequest) {
   const myObjectId = new mongoose.Types.ObjectId(currentUserId);
 
   // --- DISCOVERY MODE: search for users to add as friends ---
-  // Returns users who are NOT yet friends and NOT pending, matching the search query
   if (searchQuery && searchQuery.trim().length >= 2) {
-    const query = searchQuery.trim().toLowerCase();
+    const query = escapeRegex(searchQuery.trim().toLowerCase());
 
     // Get all existing friendship IDs to exclude
     const existingFriendships = await Friendship.find({

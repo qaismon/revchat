@@ -15,23 +15,26 @@ export function middleware(req: NextRequest) {
 
   const isPublicPage = path === "/" || isAuthPage;
 
-  // ✅ APIs
+  // ✅ Public APIs (no auth required)
   const isPublicApi =
     path.startsWith("/api/login") ||
     path.startsWith("/api/register") ||
     path.startsWith("/api/upload-avatar") ||
-    path.startsWith("/api/upload-voice") ||
     path.startsWith("/api/forgot-password") ||
-    path.startsWith("/api/messages") ||
     path.startsWith("/api/reset-password");
 
   // ---------------- API handling ----------------
   if (isApiRoute) {
     if (!token && !isPublicApi) {
-      return NextResponse.redirect(new URL("/unauthorized", req.url));
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set("X-Frame-Options", "DENY");
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    return response;
   }
 
   // ---------------- PAGE handling ----------------

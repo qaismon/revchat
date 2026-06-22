@@ -1,17 +1,17 @@
-// lib/auth.ts (or wherever your jwt logic is)
-import { cookies } from "next/headers";
-import { verifyToken } from "./jwt"; // your existing file
+import jwt from "jsonwebtoken";
 
-export async function getUserIdFromToken() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value; // or whatever your cookie name is
-
+export function getUserFromRequest(req: Request): string | null {
+  const cookie = req.headers.get("cookie");
+  if (!cookie) return null;
+  const token = cookie
+    .split("; ")
+    .find((c) => c.startsWith("accessToken="))
+    ?.split("=")[1];
   if (!token) return null;
-
   try {
-    const decoded = verifyToken(token) as { userId: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
     return decoded.userId;
-  } catch (err) {
+  } catch {
     return null;
   }
 }

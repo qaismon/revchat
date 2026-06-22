@@ -1,7 +1,16 @@
 "use client";
 import { useEffect, useRef } from "react";
 
-export default function ParticlesBg() {
+function hexRgba(hex: string, a: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+interface Props { color?: string; bgColor?: string; }
+
+export default function ParticlesBg({ color = "#58A6FF", bgColor = "#07090c" }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -17,48 +26,34 @@ export default function ParticlesBg() {
     resize();
     window.addEventListener("resize", resize);
 
-    type Particle = {
-      x: number; y: number;
-      vx: number; vy: number;
-      char: string;
-      alpha: number;
-      size: number;
-    };
-
+    const particles: { x: number; y: number; vx: number; vy: number; char: string; alpha: number; size: number }[] = [];
     const chars = "01";
-    const count = 55;
-    const particles: Particle[] = [];
-
-    const spawn = (): Particle => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: (Math.random() - 0.5) * 0.3,
-      char: chars[Math.floor(Math.random() * chars.length)],
-      alpha: Math.random() * 0.12 + 0.03,
-      size: Math.random() > 0.85 ? 13 : 10,
-    });
-
-    for (let i = 0; i < count; i++) particles.push(spawn());
+    for (let i = 0; i < 55; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: (Math.random() - 0.5) * 0.8,
+        char: chars[Math.floor(Math.random() * chars.length)],
+        alpha: 0.1 + Math.random() * 0.3,
+        size: Math.random() > 0.7 ? 13 : 10,
+      });
+    }
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = `10px 'Fira Code', monospace`;
 
       for (const p of particles) {
         p.x += p.vx;
         p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        if (Math.random() < 0.005) { p.alpha = 0.1 + Math.random() * 0.3; }
 
-        if (p.x < -10) p.x = canvas.width + 10;
-        if (p.x > canvas.width + 10) p.x = -10;
-        if (p.y < -10) p.y = canvas.height + 10;
-        if (p.y > canvas.height + 10) p.y = -10;
-
-        // randomly flip bit
-        if (Math.random() > 0.995) p.char = chars[Math.floor(Math.random() * chars.length)];
-
+        ctx.fillStyle = hexRgba(color, p.alpha);
         ctx.font = `${p.size}px 'Fira Code', monospace`;
-        ctx.fillStyle = `rgba(88, 166, 255, ${p.alpha})`;
         ctx.fillText(p.char, p.x, p.y);
       }
     };
@@ -68,7 +63,7 @@ export default function ParticlesBg() {
       clearInterval(interval);
       window.removeEventListener("resize", resize);
     };
-  }, []);
+  }, [color, bgColor]);
 
   return (
     <canvas

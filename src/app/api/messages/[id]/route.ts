@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Message from "@/models/Message";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const userId = getUserFromRequest(req);
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     await connectDB();
     const { id } = await params;
-    const { userId } = await req.json();
     const message = await Message.findById(id);
 
     if (!message) return NextResponse.json({ error: "Not found" }, { status: 404 });

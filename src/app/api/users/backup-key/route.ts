@@ -7,10 +7,19 @@ import jwt from "jsonwebtoken";
 export async function POST(req: Request) {
   try {
     await connectDB();
-    const { userId, encryptedKey } = await req.json();
 
-    if (!userId || !encryptedKey) {
-      return NextResponse.json({ message: "Missing userId or encryptedKey" }, { status: 400 });
+    const cookieStore = await cookies();
+    const token = cookieStore.get("accessToken")?.value;
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    const userId = decoded.userId;
+
+    const { encryptedKey } = await req.json();
+    if (!encryptedKey) {
+      return NextResponse.json({ message: "Missing encryptedKey" }, { status: 400 });
     }
 
     const updated = await User.findByIdAndUpdate(

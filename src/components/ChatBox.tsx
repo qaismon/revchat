@@ -12,6 +12,10 @@ import NeuralBg from "./chatBackgrounds/NeuralBg";
 import AskAIModal from "./AskAIModal";
 import FreeAIChat from "./FreeAIChat";
 import AIMessage from "./AIMessage";
+import { ParticleBurst } from "./ParticleBurst";
+import { useSound } from "@/hooks/useSound";
+import { themes } from "@/lib/themes";
+import type { ThemeId } from "@/lib/themes";
 
 function fromB64(s: string): Uint8Array<ArrayBuffer> {
   const bytes = atob(s);
@@ -102,7 +106,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const router = useRouter();
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
-  const [bgStyle, setBgStyle] = useState<"matrix"|"particles"|"neural"|"none">("matrix");
+  const [theme, setTheme] = useState<ThemeId>("matrix");
   const [isPeerTyping, setIsPeerTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement|null>(null);
   const textareaRef = useRef<HTMLTextAreaElement|null>(null);
@@ -135,8 +139,21 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [msgCount, setMsgCount] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [flippingIds, setFlippingIds] = useState<Set<string>>(new Set());
+  const [burst, setBurst] = useState<{id:number;x:number;y:number}|null>(null);
+  const { playSend, playReceive } = useSound();
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
+  const burstIdRef = useRef(0);
+  const sendBtnRef = useRef<HTMLButtonElement>(null);
+  const triggerBurst = useCallback(() => {
+    const btn = sendBtnRef.current;
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    burstIdRef.current++;
+    setBurst({id: burstIdRef.current, x: rect.left + rect.width/2, y: rect.top + rect.height/2});
+    setTimeout(() => setBurst(null), 800);
+  }, []);
 
   const fmtRec = (s: number) => `${Math.floor(s/60).toString().padStart(2,"0")}:${(s%60).toString().padStart(2,"0")}`;
 
@@ -254,6 +271,9 @@ const fd = new FormData();
 };
 
   const handleDeleteMessage = async (msgId: string) => {
+    setFlippingIds(prev => new Set(prev).add(msgId));
+    setDeleteConfirmId(null);
+    await new Promise(r => setTimeout(r, 480));
     setDeletingId(msgId);
     try {
       await fetch(`/api/messages/${msgId}`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId})});
@@ -261,7 +281,7 @@ const fd = new FormData();
       setDecryptedMessages(prev=>{const n={...prev};delete n[msgId];return n;});
       socketRef.current?.emit("delete-message",{messageId:msgId,peerId});
     } catch(err) { console.error(err); }
-    finally { setDeletingId(null); setDeleteConfirmId(null); }
+    finally { setDeletingId(null); setFlippingIds(prev => { const n=new Set(prev); n.delete(msgId); return n; }); }
   };
 
   const scrollToBottom = useCallback(()=>{if(!isGrepActive)messagesEndRef.current?.scrollIntoView({behavior:"smooth"});},[isGrepActive]);
@@ -365,7 +385,7 @@ const fd = new FormData();
     const socket=socketRef.current; if(!socket) return;
     const hMsg=(msg:any)=>{
       const rel=(msg.senderId===userId&&msg.receiverId===peerId)||(msg.senderId===peerId&&msg.receiverId===userId);
-      if(rel){if(msg.senderId===userId)return;setMessages(p=>p.some(m=>m._id===msg._id||m._id===msg.messageId)?p:[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);if(msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
+      if(rel){if(msg.senderId===userId)return;setMessages(p=>p.some(m=>m._id===msg._id||m._id===msg.messageId)?p:[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);playReceive();if(msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
     };
     const hSeen=({seenBy}:{seenBy:string})=>{if(seenBy===peerId)setMessages(p=>p.map(m=>m.senderId===userId?{...m,seen:true,delivered:true}:m));};
     const hTyping=({from,isTyping}:{from:string;isTyping:boolean})=>{if(from===peerId)setIsPeerTyping(isTyping);};
@@ -417,14 +437,14 @@ const fd = new FormData();
       if(!dbR.ok) throw new Error("DB save failed");
       const sv=await dbR.json();
       if(sv?._id){setMessages(p=>p.map(m=>m._id===tid?{...m,_id:sv._id}:m));setDecryptedMessages(p=>{const n:Record<string,string>={...p,[sv._id]:raw};delete n[tid];return n;});}
+      playSend();
     } catch(err){console.error("Hybrid Transmission failed",err);setSendError("Message failed to send");}
   };
 
   const displayedMessages=isGrepActive?messages.filter(m=>(decryptedMessages[m._id||m.createdAt]||"").toLowerCase().includes(grepQuery.toLowerCase())):messages;
   const onEmojiClick=(ed:any)=>{setText(p=>p+ed.emoji);setShowEmojiPicker(false);};
-  const nextBg=(c:string)=>({neural:"matrix",matrix:"particles",particles:"none",none:"neural"} as any)[c];
-  const bgLabel={neural:"NEURAL",matrix:"MATRIX",particles:"BINARY",none:"NONE"} as any;
-  const bgColor={neural:"#a78bfa",matrix:"#7EE787",particles:"#58A6FF",none:"#484F58"} as any;
+  const themeKeys: ThemeId[] = ["matrix", "neon", "amber", "cyan"];
+  const nextTheme = (t: ThemeId): ThemeId => themeKeys[(themeKeys.indexOf(t) + 1) % themeKeys.length];
 
   const grouped: Record<string, any[]> = displayedMessages.reduce((acc,m)=>{
     const d=new Date(m.createdAt||Date.now()).toDateString();
@@ -445,6 +465,11 @@ const fd = new FormData();
         .cb,.cb *{font-family:'Fira Code',monospace!important}
         .cs::-webkit-scrollbar{width:3px}.cs::-webkit-scrollbar-track{background:transparent}.cs::-webkit-scrollbar-thumb{background:#1a2035;border-radius:2px}
         @keyframes msgIn{from{opacity:0;transform:translateY(5px) scale(.98)}to{opacity:1;transform:none}}
+        @keyframes glitchIn{0%{opacity:0;clip-path:inset(0 0 100% 0)}20%{opacity:1;clip-path:inset(0 0 60% 0);transform:translateX(-2px)}40%{clip-path:inset(40% 0 30% 0);transform:translateX(2px)}60%{clip-path:inset(20% 0 50% 0);transform:translateX(-1px)}80%{clip-path:inset(0 0 0 0);transform:translateX(0)}100%{clip-path:inset(0 0 0 0);opacity:1}}
+        @keyframes crtLine{0%{top:-2px}100%{top:100%}}
+        @keyframes flipOut{0%{transform:perspective(600px) rotateY(0)}50%{transform:perspective(600px) rotateY(90deg) translateX(10px)}100%{transform:perspective(600px) rotateY(180deg) translateX(60px);opacity:0}}
+        @keyframes glitchOut{0%{opacity:1;filter:blur(0)}20%{transform:translateX(-4px) skewX(2deg);filter:blur(1px)}40%{transform:translateX(4px) skewX(-2deg);filter:blur(2px)}60%{transform:translateX(-2px);filter:blur(3px)}100%{opacity:0;filter:blur(8px);transform:translateX(40px)}}
+        @keyframes typeIn{from{max-width:0}to{max-width:100%}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
         @keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
         @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
@@ -452,13 +477,17 @@ const fd = new FormData();
         @keyframes prog{0%{background-position:200% 0}100%{background-position:-200% 0}}
         @keyframes glow{0%,100%{box-shadow:0 0 0 1px #1a2a4a}50%{box-shadow:0 0 16px rgba(88,166,255,0.12),0 0 0 1px #1a3a6e}}
         @keyframes voice-pulse{0%,100%{box-shadow:0 0 0 0 rgba(35,134,54,0.4)}50%{box-shadow:0 0 12px 2px rgba(35,134,54,0.6)}}
-        .msg-in{animation:msgIn .22s cubic-bezier(.16,1,.3,1) forwards}
+        .msg-in{animation:msgIn .22s cubic-bezier(.16,1,.3,1) forwards,glitchIn .35s ease-out forwards;position:relative;max-width:100%}
+        .msg-in::after{content:"";position:absolute;left:0;right:0;height:1px;background:repeating-linear-gradient(0deg,transparent,transparent 1px,rgba(126,231,135,0.03) 1px,rgba(126,231,135,0.03) 2px);animation:crtLine 3s linear infinite;pointer-events:none;opacity:0.4}
+        .msg-flip-out{animation:flipOut .45s cubic-bezier(.55,0,.1,1) forwards,glitchOut .45s ease-out forwards!important;pointer-events:none;max-width:100%}
         .fu{animation:fadeUp .2s ease-out}
         .si{animation:slideIn .28s cubic-bezier(.16,1,.3,1) forwards}
         .ai-glow{animation:glow 3s ease-in-out infinite}
         .btn{transition:all .15s ease}.btn:hover{transform:translateY(-1px)}.btn:active{transform:scale(.93)}
         .inp:focus-within{box-shadow:0 0 0 1px #1a3a6e,0 0 20px rgba(88,166,255,0.05)}
         .prog-bar{background:linear-gradient(90deg,#0a0c10 25%,#1a3a6e 50%,#0a0c10 75%);background-size:200% 100%;animation:prog 1.5s infinite}
+        .reaction-float{animation:floatUp .35s cubic-bezier(.34,1.56,.64,1) forwards}
+        @keyframes floatUp{from{opacity:0;transform:translateY(6px) scale(.5)}to{opacity:1;transform:translateY(0) scale(1)}}
       `}</style>
 
       {/* HEADER */}
@@ -500,8 +529,8 @@ const fd = new FormData();
               {/* <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg> */}
               AI
             </button>
-            <button onClick={()=>setBgStyle(p=>nextBg(p))} className="btn px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wider" style={{color:bgColor[bgStyle],border:`1px solid ${bgColor[bgStyle]}33`,background:`${bgColor[bgStyle]}08`}}>
-              {bgLabel[bgStyle]}
+            <button onClick={()=>setTheme(t=>nextTheme(t))} className="btn px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wider" style={{color:themes[theme].accent,border:`1px solid ${themes[theme].accent}33`,background:`${themes[theme].accent}08`}}>
+              {themes[theme].name}
             </button>
             <button onClick={()=>{setIsGrepActive(!isGrepActive);setGrepQuery("");}} className="btn w-8 h-8 rounded-lg flex items-center justify-center" style={{color:isGrepActive?"#7EE787":"#484F58",border:`1px solid ${isGrepActive?"#238636":"#1a1f2e"}`,background:isGrepActive?"#0d2218":"transparent"}}>
               {isGrepActive
@@ -540,12 +569,13 @@ const fd = new FormData();
             <div className="text-[10px] text-[#484F58]">any file up to 15MB</div>
           </div>
         )}
-        {bgStyle==="neural"&&<NeuralBg/>}
-        {bgStyle==="matrix"&&<MatrixRain/>}
-        {bgStyle==="particles"&&<ParticlesBg/>}
-        <div className="absolute inset-0 pointer-events-none z-0" style={{background:"radial-gradient(ellipse 70% 50% at 50% 100%,rgba(35,134,54,0.03) 0%,transparent 70%)"}}/>
+        {theme === "neon" && <ParticlesBg color="#a78bfa" bgColor="#090610"/>}
+        {theme === "matrix" && <MatrixRain color="#7EE787" bgColor="#07090c"/>}
+        {theme === "amber" && <MatrixRain color="#FFB000" bgColor="#080600"/>}
+        {theme === "cyan" && <NeuralBg color="#58A6FF" highlight="#00D4FF" bgColor="#000a12"/>}
+        <div className="absolute inset-0 pointer-events-none z-0" style={{background:`radial-gradient(ellipse 70% 50% at 50% 100%,${themes[theme].accent}08 0%,transparent 70%)`}}/>
 
-        <div className="cb cs relative z-[1] h-full overflow-y-auto px-4 py-4 flex flex-col gap-0.5" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
+        <div className="cb cs relative z-[1] h-full overflow-y-auto overflow-x-hidden px-4 py-4 flex flex-col gap-0.5" ref={messagesContainerRef} onScroll={handleMessagesScroll}>
           {isLoadingMore && (
             <div className="py-3 flex items-center justify-center gap-2 shrink-0">
               <div style={{width:14,height:14,border:"1.5px solid #30363D",borderTopColor:"#7EE787",borderRadius:"50%",animation:"spin 0.6s linear infinite"}}/>
@@ -588,9 +618,10 @@ const fd = new FormData();
                 const isFile=!m.deleted&&dc.startsWith("FILE_PACKET:");
                 const prev=msgs[mi-1];
                 const sameGrp=prev&&prev.senderId===m.senderId&&!isAI;
+                const isFlipping = flippingIds.has(mid);
                 return (
-                  <div key={mid} className={`flex ${isAI?"justify-center":isMe?"justify-end":"justify-start"} ${sameGrp?"mt-0.5":"mt-3"} msg-in`}>
-                    <div className="relative group" style={{maxWidth: isAI ? "min(95vw,580px)" : (dc.includes("```") ? "min(92vw,600px)" : "min(82vw,360px)")}}>
+                  <div key={mid} className={`flex ${isAI?"justify-center":isMe?"justify-end":"justify-start"} ${sameGrp?"mt-0.5":"mt-3"} ${isFlipping?"msg-flip-out":"msg-in"}`}>
+                    <div className="relative group" style={{maxWidth: isAI ? "min(95vw,580px)" : (dc.includes("```") ? "min(92vw,600px)" : "min(82vw,360px)"),overflowWrap:"break-word"}}>
                       {/* {!isMe&&!isAI&&!sameGrp&&(
                         <div className="absolute -left-8 bottom-0 w-6 h-6 rounded-xl overflow-hidden" style={{border:"1px solid #1a2035"}}>
                           {peerAvatar?<img src={peerAvatar} className="w-full h-full object-cover" alt=""/>:<div className="w-full h-full flex items-center justify-center text-[9px] font-bold" style={{background:"#1a2035",color:"#58A6FF"}}>{peerName?.[0]?.toUpperCase()}</div>}
@@ -780,7 +811,7 @@ const fd = new FormData();
             className="flex-1 bg-transparent border-none outline-none text-sm resize-none py-2 px-1"
             style={{color:"#C9D1D9",fontFamily:"'Fira Code',monospace",minHeight:"20px",maxHeight:"96px"}}
             value={text} onChange={handleInputChange}
-            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();triggerBurst();}}}
             placeholder="type a message..."/>
 
           {showEmojiPicker&&(
@@ -834,7 +865,7 @@ const fd = new FormData();
                 </svg>
               </button>
             )}
-            <button onClick={()=>sendMessage()} disabled={!!isRecording || !text.trim()} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:(!isRecording && text.trim())?"#0f2e1a":"#0a0c10",color:(!isRecording && text.trim())?"#7EE787":"#30363d",border:`1px solid ${(!isRecording && text.trim())?"#238636":"#1a1f2e"}`}}>
+            <button ref={sendBtnRef} onClick={(e)=>{sendMessage();triggerBurst();}} disabled={!!isRecording || !text.trim()} className="btn flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold tracking-wider ml-1 transition-colors" style={{background:(!isRecording && text.trim())?"#0f2e1a":"#0a0c10",color:(!isRecording && text.trim())?"#7EE787":"#30363d",border:`1px solid ${(!isRecording && text.trim())?"#238636":"#1a1f2e"}`}}>
               SEND <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>
           </div>
@@ -871,6 +902,8 @@ const fd = new FormData();
           </div>
         </div>
       )}
+
+      <ParticleBurst burst={burst} />
     </div>
   );
 }

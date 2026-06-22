@@ -3,8 +3,12 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Message from "@/models/Message";
 import Friendship from "@/models/Friendship";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function GET(req: Request) {
+  const userId = getUserFromRequest(req);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const user1 = searchParams.get("user1");
   const user2 = searchParams.get("user2");
@@ -12,6 +16,11 @@ export async function GET(req: Request) {
   const before = searchParams.get("before");
 
   if (!user1 || !user2) return NextResponse.json([], { status: 200 });
+
+  // Must be one of the participants
+  if (userId !== user1 && userId !== user2) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await connectDB();
   const u1 = new mongoose.Types.ObjectId(user1);
@@ -29,6 +38,9 @@ export async function GET(req: Request) {
     ],
   };
   if (before) {
+    if (isNaN(new Date(before).getTime())) {
+      return NextResponse.json({ error: "Invalid date" }, { status: 400 });
+    }
     query.createdAt = { $lt: new Date(before) };
   }
 
@@ -46,11 +58,17 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const userId = getUserFromRequest(req);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   await connectDB();
   const body = await req.json();
-  
-  // Destructure contentSender from the request body
+
   const { senderId, receiverId, content, contentSender } = body;
+
+  if (senderId !== userId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
 const friendship = await Friendship.findOne({
   status: "accepted",
@@ -63,7 +81,6 @@ if (!friendship) {
   return NextResponse.json({ error: "Not friends" }, { status: 403 });
 }
 
-  // contentSender is now a required field for the double-encryption strategy
   if (!senderId || !receiverId || !content || !contentSender) {
     return NextResponse.json({ error: "Missing encrypted fields" }, { status: 400 });
   }
@@ -71,8 +88,8 @@ if (!friendship) {
   const message = await Message.create({
     senderId: new mongoose.Types.ObjectId(senderId),
     receiverId: new mongoose.Types.ObjectId(receiverId),
-    content,       // Encrypted with Peer's Public Key
-    contentSender, // Encrypted with My (Sender's) Public Key
+    content,
+    contentSender,
     seen: false,
   });
 

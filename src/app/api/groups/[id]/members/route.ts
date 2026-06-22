@@ -3,9 +3,6 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Group from "@/models/Group";
-import { io } from "socket.io-client";
-
-const socket = io(process.env.NEXT_PUBLIC_BASE_URL);
 
 function getUserFromRequest(req: Request): string | null {
   const cookie = req.headers.get("cookie");
@@ -56,8 +53,6 @@ export async function POST(
     .populate("members", "_id username avatar")
     .populate("admin", "_id username");
 
-  socket.emit("trigger-group-update", { action: "addMember", groupId: id });
-
   return NextResponse.json(populated);
 }
 
@@ -98,8 +93,6 @@ export async function DELETE(
   const populated = await Group.findById(id)
     .populate("members", "_id username avatar")
     .populate("admin", "_id username");
-
-  socket.emit("trigger-group-update", { action: "removeMember", groupId: id });
 
   return NextResponse.json(populated);
 }

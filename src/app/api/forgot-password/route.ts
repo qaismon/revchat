@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import mongoose from "mongoose";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const PasswordResetSchema = new mongoose.Schema({
   userId: mongoose.Schema.Types.ObjectId,
@@ -15,6 +16,11 @@ const PasswordReset = mongoose.models.PasswordReset || mongoose.model("PasswordR
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for") || "unknown";
+    if (!checkRateLimit(ip, 3, 60000)) {
+      return NextResponse.json({ message: "Too many requests" }, { status: 429 });
+    }
+
     const { email } = await req.json();
     await connectDB();
 
@@ -32,9 +38,6 @@ export async function POST(req: Request) {
 
     const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
 
-   console.log("EMAIL_USER:", process.env.EMAIL_USER);
-console.log("EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
-
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
@@ -46,7 +49,6 @@ const transporter = nodemailer.createTransport({
 });
 
 await transporter.verify();
-console.log("SMTP verified OK");
 
     await transporter.sendMail({
       from: `"RevChat" <${process.env.EMAIL_USER}>`,
@@ -65,7 +67,6 @@ console.log("SMTP verified OK");
         </div>
       `,
     });
-    
 
     return NextResponse.json({ message: "If that email exists, a reset link has been sent." });
   } catch (err) {

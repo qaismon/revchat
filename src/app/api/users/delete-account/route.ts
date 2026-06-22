@@ -5,17 +5,18 @@ import Message from "@/models/Message";
 import Group from "@/models/Group";
 import mongoose from "mongoose";
 import { UTApi } from "uploadthing/server";
+import { getUserFromRequest } from "@/lib/auth";
 
 const utapi = new UTApi();
 
 export async function DELETE(req: NextRequest) {
   try {
-    await connectDB();
-    const { userId } = await req.json();
-
+    const userId = getUserFromRequest(req);
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-      return NextResponse.json({ error: "INVALID_USER_ID" }, { status: 400 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await connectDB();
 
     const user = await User.findById(userId);
     if (!user) return NextResponse.json({ error: "USER_NOT_FOUND" }, { status: 404 });

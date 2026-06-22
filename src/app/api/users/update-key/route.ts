@@ -2,29 +2,28 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import mongoose from "mongoose";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    await connectDB();
-    const { userId, publicKey } = await req.json();
+    const userId = getUserFromRequest(req);
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // DIAGNOSTIC LOGS
-    console.log("--- DATABASE DIAGNOSTIC ---");
-    console.log("Connected to DB:", mongoose.connection.name); // This tells you the DB name
-    console.log("Updating User ID:", userId);
+    await connectDB();
+    const { publicKey } = await req.json();
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { $set: { publicKey: publicKey, isEncryptionEnabled: true } },
+      { $set: { publicKey, isEncryptionEnabled: true } },
       { new: true }
     );
 
     if (!updatedUser) {
-      console.log("❌ USER NOT FOUND IN THIS DB");
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    console.log("✅ SUCCESS. Document in DB now looks like:", updatedUser);
     return NextResponse.json({ message: "Updated", user: updatedUser.username }, { status: 200 });
 
   } catch (error) {

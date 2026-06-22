@@ -3,15 +3,17 @@ import mongoose from "mongoose";
 import User from "@/models/User";
 import { connectDB } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { getUserFromRequest } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    await connectDB();
-    const { userId, type, value, currentPassword } = await req.json();
-
+    const userId = getUserFromRequest(req);
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-      return NextResponse.json({ error: "INVALID_USER_ID" }, { status: 400 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await connectDB();
+    const { type, value, currentPassword } = await req.json();
 
     // --- AVATAR UPDATE LOGIC ---
     if (type === "avatar") {
