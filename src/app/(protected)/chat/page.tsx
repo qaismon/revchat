@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import ChatList from "@/components/ChatList";
 import ToastContainer, { Toast } from "@/components/ToastNotifcation";
 import { useSocket } from "@/hooks/useSocket";
+import { useWebRTC } from "@/hooks/useWebRTC";
+import VoiceCallOverlay from "@/components/VoiceCallOverlay";
 
 export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<{ _id: string; username: string; avatar?: string } | null>(null);
@@ -27,6 +29,14 @@ export default function ChatPage() {
   // Sync refs with state
   useEffect(() => { peerIdRef.current = peerId; }, [peerId]);
   useEffect(() => { activeGroupRef.current = activeGroup; }, [activeGroup]);
+
+  // Voice call WebRTC
+  const {
+    callState, callPeerName, isMuted, callDuration,
+    startCall, answerCall, endCall, declineCall, toggleMute,
+    handleIncomingCall, handleRemoteAnswer, handleIceCandidate,
+    handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted,
+  } = useWebRTC(socketRef);
 
   // 1. Fetch Auth User
   useEffect(() => {
@@ -143,6 +153,33 @@ export default function ChatPage() {
     };
   }, [socketRef, currentUser?._id]);
 
+  // 5. Voice Call Signaling
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    // Stable wrapper functions for socket.off cleanup
+    const onAnswered = (data: { sdp: RTCSessionDescriptionInit }) => handleRemoteAnswer(data.sdp);
+    const onIce = (data: { candidate: RTCIceCandidateInit }) => handleIceCandidate(data.candidate);
+    const onMuted = (data: { muted: boolean }) => handleRemoteMuted(data.muted);
+
+    socket.on("incoming-call", handleIncomingCall);
+    socket.on("call-answered", onAnswered);
+    socket.on("ice-candidate", onIce);
+    socket.on("call-ended", handleRemoteEnded);
+    socket.on("call-declined", handleRemoteDeclined);
+    socket.on("call-muted", onMuted);
+
+    return () => {
+      socket.off("incoming-call", handleIncomingCall);
+      socket.off("call-answered", onAnswered);
+      socket.off("ice-candidate", onIce);
+      socket.off("call-ended", handleRemoteEnded);
+      socket.off("call-declined", handleRemoteDeclined);
+      socket.off("call-muted", onMuted);
+    };
+  }, [socketRef, handleIncomingCall, handleRemoteAnswer, handleIceCandidate, handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted]);
+
   // Navigation Logic
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -193,12 +230,28 @@ export default function ChatPage() {
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulseGlow { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         .cursor-blink { animation: blink 1.1s step-end infinite; }
         .empty-fadein { animation: fadeInUp 0.5s ease forwards; }
         .float-anim { animation: float 4s ease-in-out infinite; }
+        .animate-slideDown { animation: slideDown 0.3s ease-out forwards; }
+        .animate-fadeIn { animation: fadeIn 0.25s ease-out forwards; }
       `}</style>
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} onNavigate={navigateFromToast} />
+
+      <VoiceCallOverlay
+        callState={callState}
+        callPeerName={callPeerName}
+        isMuted={isMuted}
+        callDuration={callDuration}
+        onAnswer={answerCall}
+        onEnd={endCall}
+        onDecline={declineCall}
+        onToggleMute={toggleMute}
+      />
 
       {/* Sidebar */}
       <div className={`h-full shrink-0 transition-all duration-200 border-r border-[#1a1f2e] ${
@@ -220,7 +273,7 @@ export default function ChatPage() {
         hasActiveChat ? "flex" : "hidden md:flex"
       }`}>
         {peerId ? (
-          <ChatBox userId={currentUser._id} peerId={peerId} onBack={handleBack} />
+          <ChatBox userId={currentUser._id} peerId={peerId} onBack={handleBack} onStartCall={startCall} />
         ) : activeGroup ? (
           <GroupChatBox
             userId={currentUser._id}

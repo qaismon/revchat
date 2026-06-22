@@ -25,6 +25,7 @@ app.prepare().then(() => {
     socket.on("join", (userId) => {
       socket.join(userId);
       onlineUsers.set(userId, socket.id);
+      socket.userId = userId;
       console.log(`✅ User [${userId}] joined. Online count: ${onlineUsers.size}`);
       io.emit("get-online-users", Array.from(onlineUsers.keys()));
     });
@@ -125,6 +126,31 @@ socket.on("friend-request-sent", ({ to, from }) => {
   socket.on("friend-request-responded", ({ to, action }) => {
     io.to(to).emit("friend-request-updated", { action });
   });
+
+    // VOICE CALL SIGNALING
+    socket.on("call-offer", ({ to, sdp, userName }) => {
+      io.to(to).emit("incoming-call", { from: socket.userId, userName, sdp });
+    });
+
+    socket.on("call-answer", ({ to, sdp }) => {
+      io.to(to).emit("call-answered", { from: socket.userId, sdp });
+    });
+
+    socket.on("ice-candidate", ({ to, candidate }) => {
+      io.to(to).emit("ice-candidate", { from: socket.userId, candidate });
+    });
+
+    socket.on("call-end", ({ to }) => {
+      io.to(to).emit("call-ended", { from: socket.userId });
+    });
+
+    socket.on("call-decline", ({ to }) => {
+      io.to(to).emit("call-declined", { from: socket.userId });
+    });
+
+    socket.on("call-mute", ({ to, muted }) => {
+      io.to(to).emit("call-muted", { from: socket.userId, muted });
+    });
     
     // DISCONNECT
     socket.on("disconnect", () => {
