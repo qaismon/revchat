@@ -134,8 +134,7 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [dragCaption, setDragCaption] = useState("");
   const [aiContextMenu, setAiContextMenu] = useState<{x:number;y:number;msgId:string;content:string}|null>(null);
   const [showFreeAI, setShowFreeAI] = useState(false);
-  const [deletingId, setDeletingId] = useState<string|null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string|null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
   const [msgCount, setMsgCount] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -273,17 +272,18 @@ const fd = new FormData();
 };
 
   const handleDeleteMessage = async (msgId: string) => {
+    setConfirmDeleteId(null);
     setFlippingIds(prev => new Set(prev).add(msgId));
-    setDeleteConfirmId(null);
-    await new Promise(r => setTimeout(r, 480));
-    setDeletingId(msgId);
     try {
-      await fetch(`/api/messages/${msgId}`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId})});
+      await Promise.all([
+        fetch(`/api/messages/${msgId}`,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({userId})}).then(r=>{if(!r.ok)throw new Error("delete failed");}),
+        new Promise(r => setTimeout(r, 480)),
+      ]);
       setMessages(prev=>prev.map(m=>m._id===msgId?{...m,deleted:true}:m));
       setDecryptedMessages(prev=>{const n={...prev};delete n[msgId];return n;});
       socketRef.current?.emit("delete-message",{messageId:msgId,peerId});
     } catch(err) { console.error(err); }
-    finally { setDeletingId(null); setFlippingIds(prev => { const n=new Set(prev); n.delete(msgId); return n; }); }
+    finally { setFlippingIds(prev => { const n=new Set(prev); n.delete(msgId); return n; }); }
   };
 
   const scrollToBottom = useCallback(()=>{if(!isGrepActive)messagesEndRef.current?.scrollIntoView({behavior:"smooth"});},[isGrepActive]);
@@ -366,6 +366,7 @@ const fd = new FormData();
         for (const m of messages) {
           const mid=m._id||m.createdAt; if(nd[mid]) continue;
           try {
+            if(m.deleted) continue;
             const isMe=m.senderId===userId; const raw=isMe?m.contentSender:m.content;
             if(m.senderId==="AI_BOT"){nd[mid]=m.content;upd=true;continue;}
             if(!raw){if(new Date().getTime()-new Date(m.createdAt).getTime()<2000)continue;nd[mid]=isMe?"[History Unavailable]":"[Encrypted Packet]";upd=true;continue;}
@@ -633,14 +634,14 @@ const fd = new FormData();
                           {peerAvatar?<img src={peerAvatar} className="w-full h-full object-cover" alt=""/>:<div className="w-full h-full flex items-center justify-center text-[9px] font-bold" style={{background:"#1a2035",color:"#58A6FF"}}>{peerName?.[0]?.toUpperCase()}</div>}
                         </div>
                       )} */}
-                      {!isAI&&!m.deleted&&(
+                      {!isAI&&!m.deleted&&confirmDeleteId!==mid&&(
                         <div className={`absolute top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all ${isMe?"-left-16":"-right-16"}`}>
                           <button onClick={()=>{setReplyingTo({id:mid,text:dc,sender:isMe?"you":peerName});setTimeout(()=>textareaRef.current?.focus(),50);}}
                             className="btn w-7 h-7 rounded-xl flex items-center justify-center" style={{background:"#0a0c10",border:"1px solid #1a1f2e",color:"#8B949E"}}>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>
                           </button>
                           {isMe&&(
-                            <button onClick={()=>setDeleteConfirmId(mid)} disabled={deletingId===mid}
+                            <button onClick={()=>setConfirmDeleteId(confirmDeleteId===mid?null:mid)}
                               className="btn w-7 h-7 rounded-xl flex items-center justify-center" style={{background:"#1a0a0a",border:"1px solid #3a1010",color:"#f85149"}}>
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                             </button>
@@ -685,6 +686,13 @@ const fd = new FormData();
                           <span className="text-[9px] text-[#30363d]">{new Date(m.createdAt||Date.now()).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</span>
                           {isMe&&!isAI&&<TickIcon status={getMessageStatus(m)}/>}
                         </div>
+                        {confirmDeleteId===mid&&!m.deleted&&(
+                          <div className="flex items-center gap-2 pt-2 mt-2" style={{borderTop:"1px solid #3a1010"}}>
+                            <span className="text-[9px] font-bold tracking-wider text-[#f85149]">DELETE?</span>
+                            <button onClick={()=>handleDeleteMessage(mid)} className="btn text-[9px] px-2.5 py-1 rounded-lg font-bold" style={{background:"#f8514918",color:"#f85149",border:"1px solid #3a1010"}}>YES</button>
+                            <button onClick={()=>setConfirmDeleteId(null)} className="btn text-[9px] px-2.5 py-1 rounded-lg" style={{background:"#0a0c10",color:"#8B949E",border:"1px solid #1a1f2e"}}>NO</button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -888,26 +896,6 @@ const fd = new FormData();
           </div>
         </div>
       </div>
-
-      {/* DELETE CONFIRM */}
-      {deleteConfirmId&&(
-        <div className="fixed top-4 right-4 z-[9999] w-[270px] rounded-2xl overflow-hidden si" style={{background:"#0d0a0a",border:"1px solid #3a1010",boxShadow:"0 20px 60px rgba(0,0,0,0.9)"}}>
-          <div className="h-0.5 w-full" style={{background:"linear-gradient(90deg,#f85149,transparent)"}}/>
-          <div className="p-4 flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0" style={{background:"#f8514918",border:"1px solid #3a1010"}}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f85149" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-              </div>
-              <span className="text-[11px] font-bold tracking-wider text-[#f85149]">DELETE MESSAGE</span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-[#8B949E]">Deletes for everyone. This cannot be undone.</p>
-            <div className="flex gap-2">
-              <button onClick={()=>handleDeleteMessage(deleteConfirmId)} className="btn flex-1 py-2 rounded-xl text-[11px] font-bold tracking-wider" style={{background:"#f8514918",color:"#f85149",border:"1px solid #3a1010"}}>CONFIRM</button>
-              <button onClick={()=>setDeleteConfirmId(null)} className="btn flex-1 py-2 rounded-xl text-[11px]" style={{background:"#0a0c10",color:"#8B949E",border:"1px solid #1a1f2e"}}>CANCEL</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <ParticleBurst burst={burst} />
     </div>

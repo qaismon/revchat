@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   }
 
   const messages = await Message.find(query)
-    .select("senderId receiverId content contentSender createdAt seen")
+    .select("senderId receiverId content contentSender createdAt seen deleted")
     .limit(limit + 1)
     .sort({ createdAt: -1 })
     .lean();
