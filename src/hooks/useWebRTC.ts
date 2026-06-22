@@ -160,6 +160,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
       return;
     }
     stopRingtone();
+    setCallState("calling");
     try {
       const pc = await createPC();
       console.log("[WebRTC] Setting remote description from pending offer");
