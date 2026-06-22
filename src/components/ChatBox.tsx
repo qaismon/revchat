@@ -142,6 +142,8 @@ export default function ChatBox({ userId, peerId, onBack }: { userId: string; pe
   const [flippingIds, setFlippingIds] = useState<Set<string>>(new Set());
   const [burst, setBurst] = useState<{id:number;x:number;y:number}|null>(null);
   const { playSend, playReceive } = useSound();
+  const myPubKeyRef = useRef<string | null>(null);
+  const myPubKeyPromise = useRef<Promise<string> | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
   const burstIdRef = useRef(0);
@@ -421,10 +423,17 @@ const fd = new FormData();
       const enc=await window.crypto.subtle.encrypt({name:"AES-GCM",iv},aesKey,new TextEncoder().encode(raw));
       const expk=await window.crypto.subtle.exportKey("raw",aesKey);
       const pp=await importPublicKey(peerPublicKey);
-      const med=await(await fetch(`/api/users/${userId}`)).json();
-      const mp=await importPublicKey(med.publicKey);
-      const wkp=await window.crypto.subtle.encrypt({name:"RSA-OAEP"},pp,expk);
-      const wkm=await window.crypto.subtle.encrypt({name:"RSA-OAEP"},mp,expk);
+      if (!myPubKeyRef.current) {
+        if (!myPubKeyPromise.current) {
+          myPubKeyPromise.current = fetch(`/api/users/${userId}`).then(r=>r.json()).then(d=>{myPubKeyRef.current=d.publicKey;return d.publicKey;});
+        }
+        await myPubKeyPromise.current;
+      }
+      const mp=await importPublicKey(myPubKeyRef.current!);
+      const [wkp,wkm]=await Promise.all([
+        window.crypto.subtle.encrypt({name:"RSA-OAEP"},pp,expk),
+        window.crypto.subtle.encrypt({name:"RSA-OAEP"},mp,expk),
+      ]);
       const b64=(b:ArrayBuffer)=>btoa(String.fromCharCode(...new Uint8Array(b)));
       const pkgP=JSON.stringify({ct:b64(enc),iv:btoa(String.fromCharCode(...iv)),wk:b64(wkp)});
       const pkgM=JSON.stringify({ct:b64(enc),iv:btoa(String.fromCharCode(...iv)),wk:b64(wkm)});
@@ -433,11 +442,8 @@ const fd = new FormData();
       setDecryptedMessages(p=>({...p,[tid]:raw}));
       setMsgCount(c=>c+1);
       socketRef.current?.emit("send-message",{to:peerId,message:pkgP,senderId:userId});
-      const dbR=await fetch("/api/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({senderId:userId,receiverId:peerId,content:pkgP,contentSender:pkgM})});
-      if(!dbR.ok) throw new Error("DB save failed");
-      const sv=await dbR.json();
-      if(sv?._id){setMessages(p=>p.map(m=>m._id===tid?{...m,_id:sv._id}:m));setDecryptedMessages(p=>{const n:Record<string,string>={...p,[sv._id]:raw};delete n[tid];return n;});}
       playSend();
+      fetch("/api/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({senderId:userId,receiverId:peerId,content:pkgP,contentSender:pkgM})}).then(async dbR=>{if(!dbR.ok)throw new Error("DB save failed");const sv=await dbR.json();if(sv?._id){setMessages(p=>p.map(m=>m._id===tid?{...m,_id:sv._id}:m));setDecryptedMessages(p=>{const n:Record<string,string>={...p,[sv._id]:raw};delete n[tid];return n;});}}).catch(err=>{console.error("DB save failed",err);setSendError("Message failed to save");});
     } catch(err){console.error("Hybrid Transmission failed",err);setSendError("Message failed to send");}
   };
 
