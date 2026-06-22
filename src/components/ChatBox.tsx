@@ -387,8 +387,11 @@ const fd = new FormData();
   useEffect(()=>{
     const socket=socketRef.current; if(!socket) return;
     const hMsg=(msg:any)=>{
-      const rel=(msg.senderId===userId&&msg.receiverId===peerId)||(msg.senderId===peerId&&msg.receiverId===userId);
-      if(rel){if(msg.senderId===userId)return;setMessages(p=>p.some(m=>m._id===msg._id||m._id===msg.messageId)?p:[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);playReceive();if(msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
+      const isCallLog=msg.type==="call_log";
+      const rel=isCallLog
+        ? msg.senderId===peerId||msg.receiverId===userId
+        : (msg.senderId===userId&&msg.receiverId===peerId)||(msg.senderId===peerId&&msg.receiverId===userId);
+      if(rel){if(!isCallLog&&msg.senderId===userId)return;setMessages(p=>p.some(m=>m._id===msg._id||m._id===msg.messageId)?p:[...p,{...msg,content:msg.content||msg.message,_id:msg._id||`temp-${Date.now()}`}]);setMsgCount(c=>c+1);if(!isCallLog)playReceive();if(!isCallLog&&msg.senderId===peerId)socket.emit("seen-messages",{senderId:peerId,receiverId:userId});}
     };
     const hSeen=({seenBy}:{seenBy:string})=>{if(seenBy===peerId)setMessages(p=>p.map(m=>m.senderId===userId?{...m,seen:true,delivered:true}:m));};
     const hTyping=({from,isTyping}:{from:string;isTyping:boolean})=>{if(from===peerId)setIsPeerTyping(isTyping);};
@@ -669,10 +672,11 @@ const fd = new FormData();
                           </div>
                         )}
                         <div className="text-sm text-[#C9D1D9]">
-                          {!isAI&&!isAudio&&!isFile&&!m.deleted&&(
+                          {!m.type&&!isAI&&!isAudio&&!isFile&&!m.deleted&&(
                             <span className="mr-1.5 font-bold text-[11px]" style={{color:isMe?"#7EE787":"#58A6FF"}}>{isMe?">":"$"}</span>
                           )}
-                          {m.deleted?<span className="italic text-xs text-[#30363d]">// message deleted</span>
+                          {m.type==="call_log"?<span className="text-xs text-[#484F58] italic">{m.content}</span>
+                            :m.deleted?<span className="italic text-xs text-[#30363d]">// message deleted</span>
                             :isAI?<AIMessage content={dc}/>
                             :isAudio?<VoiceMessage src={dc.replace("AUDIO_PACKET:","")}/>
                             :isFile?<FileMessage content={dc}/>

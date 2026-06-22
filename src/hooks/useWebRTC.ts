@@ -139,7 +139,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socketRef]);
 
-  const startCall = useCallback(async (peerId: string, peerName: string) => {
+  const startCall = useCallback(async (peerId: string, peerName: string, callerName: string) => {
     peerIdRef.current = peerId;
     setCallPeerId(peerId);
     setCallPeerName(peerName);
@@ -150,7 +150,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       console.log("[WebRTC] Offer created, sending call-offer to", peerId);
-      socketRef.current?.emit("call-offer", { to: peerId, sdp: offer, userName: peerName });
+      socketRef.current?.emit("call-offer", { to: peerId, sdp: offer, userName: callerName });
     } catch (err) {
       console.error("[WebRTC] startCall failed:", err);
       cleanup();

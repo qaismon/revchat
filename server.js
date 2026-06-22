@@ -156,6 +156,23 @@ socket.on("friend-request-sent", ({ to, from }) => {
     socket.on("call-mute", ({ to, muted }) => {
       io.to(to).emit("call-muted", { from: socket.userId, muted });
     });
+
+    socket.on("call-log", ({ to, from, duration }) => {
+      const fmt = (d) => {
+        const m = Math.floor(d / 60);
+        const s = d % 60;
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      };
+      const text = `Call ended · ${fmt(duration)}`;
+      io.to(to).emit("receive-message", {
+        type: "call_log", senderId: from, receiverId: to,
+        content: text, createdAt: new Date().toISOString(),
+      });
+      io.to(from).emit("receive-message", {
+        type: "call_log", senderId: to, receiverId: from,
+        content: text, createdAt: new Date().toISOString(),
+      });
+    });
     
     // DISCONNECT
     socket.on("disconnect", () => {

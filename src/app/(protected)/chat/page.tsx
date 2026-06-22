@@ -32,7 +32,7 @@ export default function ChatPage() {
 
   // Voice call WebRTC
   const {
-    callState, remoteStream, callPeerName, isMuted, callDuration,
+    callState, remoteStream, callPeerId, callPeerName, isMuted, callDuration,
     startCall, answerCall, endCall, declineCall, toggleMute,
     handleIncomingCall, handleRemoteAnswer, handleIceCandidate,
     handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted,
@@ -179,6 +179,22 @@ export default function ChatPage() {
     };
   }, [socketRef, handleIncomingCall, handleRemoteAnswer, handleIceCandidate, handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted, currentUser?._id]);
 
+  // 6. Call log — emit when call ends
+  const prevCallStateRef = useRef(callState);
+  useEffect(() => {
+    if (prevCallStateRef.current !== "ended" && callState === "ended") {
+      const socket = socketRef.current;
+      if (socket && callPeerId && currentUser?._id) {
+        socket.emit("call-log", {
+          to: callPeerId,
+          from: currentUser._id,
+          duration: callDuration,
+        });
+      }
+    }
+    prevCallStateRef.current = callState;
+  }, [callState, callDuration, callPeerId, currentUser?._id, socketRef]);
+
   // Navigation Logic
   const dismissToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -273,7 +289,7 @@ export default function ChatPage() {
         hasActiveChat ? "flex" : "hidden md:flex"
       }`}>
         {peerId ? (
-          <ChatBox userId={currentUser._id} peerId={peerId} onBack={handleBack} onStartCall={startCall} />
+          <ChatBox userId={currentUser._id} peerId={peerId} onBack={handleBack} onStartCall={(pid, pname) => startCall(pid, pname, currentUser.username)} />
         ) : activeGroup ? (
           <GroupChatBox
             userId={currentUser._id}
