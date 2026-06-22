@@ -122,6 +122,10 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (pc.signalingState === "closed") {
+        stream.getTracks().forEach(t => t.stop());
+        throw new Error("PC was closed during getUserMedia");
+      }
       localStreamRef.current = stream;
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
       console.log("[WebRTC] Local stream acquired, tracks added");
