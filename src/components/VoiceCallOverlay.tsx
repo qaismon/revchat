@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef, useEffect } from "react";
 import type { CallState } from "@/types";
 
 interface VoiceCallOverlayProps {
@@ -25,16 +24,6 @@ export default function VoiceCallOverlay({
   callState, remoteStream, callPeerName, isMuted, callDuration,
   onAnswer, onEnd, onDecline, onToggleMute,
 }: VoiceCallOverlayProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (el && remoteStream) {
-      el.srcObject = remoteStream;
-      el.play().catch(() => {});
-    }
-  }, [remoteStream, callState]);
-
   if (callState === "idle") return null;
 
   return (
@@ -87,7 +76,12 @@ export default function VoiceCallOverlay({
       {/* Connected call */}
       {callState === "connected" && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[9999] animate-fadeIn">
-          <audio ref={audioRef} autoPlay playsInline />
+          <audio ref={(el) => {
+            if (el && remoteStream) {
+              el.srcObject = remoteStream;
+              el.play().catch((e) => console.error("[Audio] play failed:", e));
+            }
+          }} autoPlay playsInline />
           <div className="rounded-2xl overflow-hidden si" style={{background:"rgba(10,12,16,0.95)",border:"1px solid #238636",boxShadow:"0 10px 40px rgba(0,0,0,0.8)",backdropFilter:"blur(12px)"}}>
             <div className="h-0.5 w-full" style={{background:"linear-gradient(90deg,#238636,#7EE787)"}}/>
             <div className="px-5 py-3 flex items-center gap-4">

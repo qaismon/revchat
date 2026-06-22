@@ -104,7 +104,8 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     };
 
     pc.ontrack = (e) => {
-      console.log("[WebRTC] Received remote track");
+      const tracks = e.streams[0]?.getTracks();
+      console.log("[WebRTC] Received remote track, tracks:", tracks?.length, tracks?.map(t => t.kind));
       setRemoteStream(e.streams[0]);
     };
 
