@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+let groq: Groq | null = null;
+function getGroq() {
+  if (!groq) {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return groq;
+}
 
 const MODELS = {
   fast: "llama-3.1-8b-instant",
@@ -103,7 +109,7 @@ Only if changes are substantial.`;
       userPrompt = `Review this code:\n\n\`\`\`\n${code}\n\`\`\``;
     }
 
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
