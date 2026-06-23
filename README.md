@@ -40,6 +40,13 @@ Live link: https://revchat.onrender.com
 [✓] Drag-and-drop file upload with preview
 [✓] Message search (grep mode)
 [✓] Forgot password / reset via email
+[✓] Voice calls — WebRTC peer-to-peer audio with STUN
+[✓] Call states: outgoing (calling), incoming, connected, ended
+[✓] Ringtone via Web Audio API (440/480Hz square wave oscillator)
+[✓] Call timer, mute toggle, decline/end
+[✓] Persistent incoming-call overlay across chat views
+[✓] Call history logs in chat ("Call ended · XX:XX")
+[✓] Call logs persisted to MongoDB (survive page refresh)
 [✓] Terminal-native UI — Fira Code, dark palette, green accents
 ```
 
@@ -153,6 +160,7 @@ src/
 │   ├── CodeReviewer.tsx        # Syntax highlighting
 │   ├── AudioMessage.tsx        # Inline voice player
 │   ├── FileMessage.tsx         # File/image renderer
+│   ├── VoiceCallOverlay.tsx    # Call UI (incoming/calling/connected/ended)
 │   ├── AskAIModal.tsx          # Context-menu AI prompt
 │   ├── FreeAIChat.tsx          # Standalone AI chat panel
 │   └── chatBackgrounds/
@@ -162,6 +170,7 @@ src/
 │
 ├── hooks/
 │   ├── useSocket.ts            # Socket.io connection
+│   ├── useWebRTC.ts            # WebRTC peer connection + call state machine
 │   └── useAudioRecorder.ts    # MediaRecorder API wrapper
 │
 ├── lib/
@@ -186,10 +195,11 @@ src/
 // deleted       → soft delete flag (nulls content fields)
 
 {
+  type:          String | undefined,  // "call_log" for call history entries
   senderId:      ObjectId,
   receiverId:    ObjectId,
-  content:       String | null,   // encrypted for recipient
-  contentSender: String | null,   // encrypted for sender
+  content:       String | null,   // encrypted for recipient (or plaintext for call_log)
+  contentSender: String | null,   // encrypted for sender (omitted for call_log)
   deleted:       Boolean,
   delivered:     Boolean,
   seen:          Boolean,
@@ -208,6 +218,7 @@ AUDIO_PACKET:<url>
 FILE_PACKET:<url>|<filename>|<mimetype>
 REPLY_PACKET:<quoted_text>|<actual_message>
 ### 🧠 LOGIC_EXPLAINED\n\n<ai_output>
+CALL_LOG (type: "call_log") — plaintext "Call ended · XX:XX"
 ```
 
 ---
@@ -225,6 +236,14 @@ REPLY_PACKET:<quoted_text>|<actual_message>
 | `message-delivered` | server → client | Double tick |
 | `delete-message` | client → server | Broadcast deletion |
 | `message-deleted` | server → client | Remove from peer's UI |
+| `call-offer` | client → server | Initiate WebRTC call with SDP offer |
+| `incoming-call` | server → client | Relay offer to callee |
+| `call-answer` | client ↔ server | WebRTC answer (SDP) |
+| `ice-candidate` | client ↔ server | ICE candidate exchange |
+| `call-end` | client ↔ server | End the call |
+| `call-decline` | client → server | Decline incoming call |
+| `call-mute` | client ↔ server | Mute state toggle |
+| `call-log` | client → server | Emit call history on hang-up |
 
 ---
 
