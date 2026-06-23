@@ -32,7 +32,7 @@ export default function ChatPage() {
 
   // Voice call WebRTC
   const {
-    callState, remoteStream, callPeerId, callPeerName, isMuted, callDuration,
+    callState, remoteStream, callPeerId, callPeerName, callerName, isMuted, callDuration,
     startCall, answerCall, endCall, declineCall, toggleMute,
     handleIncomingCall, handleRemoteAnswer, handleIceCandidate,
     handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted,
@@ -261,6 +261,7 @@ export default function ChatPage() {
         callState={callState}
         remoteStream={remoteStream}
         callPeerName={callPeerName}
+        callerName={callerName}
         isMuted={isMuted}
         callDuration={callDuration}
         onAnswer={answerCall}

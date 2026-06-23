@@ -129,7 +129,7 @@ socket.on("friend-request-sent", ({ to, from }) => {
 
     // VOICE CALL SIGNALING
     socket.on("call-offer", ({ to, sdp, userName }) => {
-      console.log(`[Call] Offer from ${socket.userId} to ${to}`);
+      console.log(`[Call] Offer from ${socket.userId} to ${to}, userName: ${userName}`);
       io.to(to).emit("incoming-call", { from: socket.userId, userName, sdp });
     });
 

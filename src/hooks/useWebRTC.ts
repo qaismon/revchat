@@ -26,6 +26,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   const [callDuration, setCallDuration] = useState(0);
   const [callPeerId, setCallPeerId] = useState<string | null>(null);
   const [callPeerName, setCallPeerName] = useState("");
+  const [callerName, setCallerName] = useState("");
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -37,6 +38,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     setRemoteStream(null);
     setCallDuration(0);
     setIsMuted(false);
+    setCallerName("");
     connectedRef.current = false;
   }, []);
 
@@ -149,7 +151,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
       const pc = await createPC();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      console.log("[WebRTC] Offer created, sending call-offer to", peerId);
+      console.log("[WebRTC] Offer created, sending call-offer to", peerId, "userName:", callerName);
       socketRef.current?.emit("call-offer", { to: peerId, sdp: offer, userName: callerName });
     } catch (err) {
       console.error("[WebRTC] startCall failed:", err);
@@ -226,6 +228,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     peerIdRef.current = data.from;
     setCallPeerId(data.from);
     setCallPeerName(data.userName);
+    setCallerName(data.userName);
     pendingOfferRef.current = data.sdp;
     setCallState("incoming");
     playRingtone();
@@ -278,6 +281,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
         setCallState("idle");
         setCallPeerId(null);
         setCallPeerName("");
+        setCallerName("");
         peerIdRef.current = null;
         connectedRef.current = false;
       }, 2500);
@@ -293,7 +297,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
   }, [cleanup, stopRingtone]);
 
   return {
-    callState, remoteStream, isMuted, callDuration, callPeerId, callPeerName,
+    callState, remoteStream, isMuted, callDuration, callPeerId, callPeerName, callerName,
     startCall, answerCall, endCall, declineCall, toggleMute,
     handleIncomingCall, handleRemoteAnswer, handleIceCandidate,
     handleRemoteEnded, handleRemoteDeclined, handleRemoteMuted,
