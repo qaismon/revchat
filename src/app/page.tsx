@@ -325,7 +325,6 @@ export default function Home() {
         <div style={{ opacity: 1 }}>
           {/* Status pill */}
           <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border mb-8" style={{ borderColor: "#1a2a4a", background: "rgba(88,166,255,0.06)" }}>
-            <div className="w-2 h-2 rounded-full bg-[#7EE787] pulse-dot" />
           </div>
 
           {/* Main heading */}
