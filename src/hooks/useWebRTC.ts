@@ -36,7 +36,6 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     localStreamRef.current?.getTracks().forEach(t => t.stop());
     localStreamRef.current = null;
     setRemoteStream(null);
-    setCallDuration(0);
     setIsMuted(false);
     setCallerName("");
     connectedRef.current = false;
@@ -205,6 +204,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     }
     cleanup();
     setCallState("idle");
+    setCallDuration(0);
     setCallPeerId(null);
     setCallPeerName("");
     peerIdRef.current = null;
@@ -279,6 +279,7 @@ export function useWebRTC(socketRef: React.MutableRefObject<Socket | null>) {
     if (callState === "ended") {
       const t = setTimeout(() => {
         setCallState("idle");
+        setCallDuration(0);
         setCallPeerId(null);
         setCallPeerName("");
         setCallerName("");

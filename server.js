@@ -168,10 +168,6 @@ socket.on("friend-request-sent", ({ to, from }) => {
         type: "call_log", senderId: from, receiverId: to,
         content: text, createdAt: new Date().toISOString(),
       });
-      io.to(from).emit("receive-message", {
-        type: "call_log", senderId: to, receiverId: from,
-        content: text, createdAt: new Date().toISOString(),
-      });
     });
     
     // DISCONNECT
