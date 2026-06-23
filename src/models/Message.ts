@@ -2,6 +2,10 @@ import mongoose, { Schema, models } from "mongoose";
 
 const MessageSchema = new Schema(
   {
+    type: {
+      type: String,
+      default: undefined,
+    },
     senderId: {
       type: Schema.Types.ObjectId,
       ref: "User",

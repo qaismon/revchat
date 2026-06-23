@@ -164,10 +164,32 @@ socket.on("friend-request-sent", ({ to, from }) => {
         return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
       };
       const text = `Call ended · ${fmt(duration)}`;
-      io.to(to).emit("receive-message", {
-        type: "call_log", senderId: from, receiverId: to,
+      const base = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const payload = (senderId, receiverId) => ({
+        type: "call_log", senderId, receiverId,
         content: text, createdAt: new Date().toISOString(),
       });
+      // Persist both directions to DB, then relay with real _id
+      Promise.all([
+        fetch(`${base}/api/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "call_log", senderId: from, receiverId: to, content: text }),
+        }).then(r => r.json()).then(saved => {
+          if (saved?._id) {
+            io.to(to).emit("receive-message", { ...payload(from, to), _id: saved._id });
+          }
+        }).catch(err => console.error("[Call-log] DB save failed (to):", err)),
+        fetch(`${base}/api/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "call_log", senderId: to, receiverId: from, content: text }),
+        }).then(r => r.json()).then(saved => {
+          if (saved?._id) {
+            io.to(from).emit("receive-message", { ...payload(to, from), _id: saved._id });
+          }
+        }).catch(err => console.error("[Call-log] DB save failed (from):", err)),
+      ]);
     });
     
     // DISCONNECT

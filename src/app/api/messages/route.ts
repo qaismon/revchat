@@ -45,7 +45,7 @@ export async function GET(req: Request) {
   }
 
   const messages = await Message.find(query)
-    .select("senderId receiverId content contentSender createdAt seen deleted")
+    .select("senderId receiverId content contentSender type createdAt seen deleted")
     .limit(limit + 1)
     .sort({ createdAt: -1 })
     .lean();
@@ -58,13 +58,26 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const userId = getUserFromRequest(req);
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   await connectDB();
   const body = await req.json();
 
-  const { senderId, receiverId, content, contentSender } = body;
+  const { senderId, receiverId, content, contentSender, type } = body;
+
+  if (type === "call_log") {
+    if (!senderId || !receiverId || !content) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+    const message = await Message.create({
+      senderId: new mongoose.Types.ObjectId(senderId),
+      receiverId: new mongoose.Types.ObjectId(receiverId),
+      content,
+      type: "call_log",
+    });
+    return NextResponse.json(message, { status: 201 });
+  }
+
+  const userId = getUserFromRequest(req);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (senderId !== userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

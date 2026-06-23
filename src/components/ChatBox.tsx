@@ -367,6 +367,7 @@ const fd = new FormData();
           const mid=m._id||m.createdAt; if(nd[mid]) continue;
           try {
             if(m.deleted) continue;
+            if(m.type==="call_log"){nd[mid]=m.content;upd=true;continue;}
             const isMe=m.senderId===userId; const raw=isMe?m.contentSender:m.content;
             if(m.senderId==="AI_BOT"){nd[mid]=m.content;upd=true;continue;}
             if(!raw){if(new Date().getTime()-new Date(m.createdAt).getTime()<2000)continue;nd[mid]=isMe?"[History Unavailable]":"[Encrypted Packet]";upd=true;continue;}
