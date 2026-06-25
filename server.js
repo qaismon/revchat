@@ -194,16 +194,11 @@ socket.on("friend-request-sent", ({ to, from }) => {
     
     // DISCONNECT
     socket.on("disconnect", () => {
-      let disconnectedUserId = null;
-      for (let [userId, socketId] of onlineUsers.entries()) {
-        if (socketId === socket.id) {
-          disconnectedUserId = userId;
-          onlineUsers.delete(userId);
-          break;
-        }
+      if (socket.userId && onlineUsers.get(socket.userId) === socket.id) {
+        onlineUsers.delete(socket.userId);
+        console.log(`❌ User [${socket.userId}] disconnected. Online count: ${onlineUsers.size}`);
+        io.emit("get-online-users", Array.from(onlineUsers.keys()));
       }
-      console.log(`❌ User [${disconnectedUserId}] disconnected.`);
-      io.emit("get-online-users", Array.from(onlineUsers.keys()));
     });
   });
 
