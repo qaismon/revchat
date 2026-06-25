@@ -517,9 +517,7 @@ const fd = new FormData();
                   :<div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{background:"#1a2035",color:"#58A6FF"}}>{peerName?.[0]?.toUpperCase()||"?"}</div>
                 }
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full" style={{background:"#07090c",padding:"2px"}}>
-                <div className="w-full h-full rounded-full bg-[#7EE787]"/>
-              </div>
+             
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
